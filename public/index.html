@@ -13,17 +13,8 @@
         <div class="sidebar__brand">
           <p class="eyebrow">MONDAY AUTOMATION</p>
           <h1>GAS Flow Viewer</h1>
-          <p class="sidebar__lede">실무 언어 흐름 · 보드별 파일 필터</p>
+          <p class="sidebar__lede">실무 언어 흐름 · 파일별 구조</p>
         </div>
-
-        <section class="board-filter" id="boardFilterSection" aria-labelledby="boardFilterTitle">
-          <div class="panel-head panel-head--row">
-            <h2 id="boardFilterTitle">보드 필터</h2>
-            <button id="clearBoardFilter" class="text-button" type="button" hidden>필터 해제</button>
-          </div>
-          <p class="panel-head__hint">웹훅 보드는 칩에 WEBHOOK 표시 · 상세 차트에는 변경 알림과 보드명 표시</p>
-          <div id="boardFilterList" class="chip-list chip-list--wrap" role="list"></div>
-        </section>
 
         <nav class="diagram-nav" aria-label="다이어그램 목록">
           <div class="nav-toolbar" id="navToolbar" hidden>
@@ -53,7 +44,6 @@
               </div>
               <p id="diagramPath" class="diagram-path"></p>
             </div>
-            <div id="metaSummary" class="meta-summary" hidden></div>
           </div>
 
           <section id="relatedBoardsSection" class="related-boards" aria-label="관련 보드" hidden>
@@ -75,6 +65,24 @@
           <div id="diagramError" class="diagram-error" role="alert" hidden></div>
           <div id="diagramViewport" class="diagram-viewport">
             <div id="diagramMount" class="diagram-mount"></div>
+          </div>
+          <div class="title-block" aria-hidden="true">
+            <div class="title-block__cell">
+              <span class="title-block__label">File</span>
+              <span id="titleBlockFile" class="title-block__value">—</span>
+            </div>
+            <div class="title-block__cell">
+              <span class="title-block__label">Nodes</span>
+              <span id="titleBlockNodes" class="title-block__value">—</span>
+            </div>
+            <div class="title-block__cell">
+              <span class="title-block__label">Board</span>
+              <span id="titleBlockBoard" class="title-block__value">—</span>
+            </div>
+            <div class="title-block__cell">
+              <span class="title-block__label">Status</span>
+              <span id="titleBlockStatus" class="title-block__value">—</span>
+            </div>
           </div>
         </section>
       </main>

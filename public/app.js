@@ -7,9 +7,6 @@ const state = {
 
 const elements = {
   backButton: document.querySelector('#backButton'),
-  boardFilterSection: document.querySelector('#boardFilterSection'),
-  boardFilterList: document.querySelector('#boardFilterList'),
-  clearBoardFilter: document.querySelector('#clearBoardFilter'),
   dataStatus: document.querySelector('#dataStatus'),
   diagramError: document.querySelector('#diagramError'),
   diagramHint: document.querySelector('#diagramHint'),
@@ -20,7 +17,6 @@ const elements = {
   diagramStatus: document.querySelector('#diagramStatus'),
   diagramTitle: document.querySelector('#diagramTitle'),
   legendList: document.querySelector('#legendList'),
-  metaSummary: document.querySelector('#metaSummary'),
   navClearFilter: document.querySelector('#navClearFilter'),
   navFilterCount: document.querySelector('#navFilterCount'),
   navFilterLabel: document.querySelector('#navFilterLabel'),
@@ -29,6 +25,10 @@ const elements = {
   relatedBoardList: document.querySelector('#relatedBoardList'),
   relatedBoardsSection: document.querySelector('#relatedBoardsSection'),
   sidebar: document.querySelector('.sidebar'),
+  titleBlockFile: document.querySelector('#titleBlockFile'),
+  titleBlockNodes: document.querySelector('#titleBlockNodes'),
+  titleBlockBoard: document.querySelector('#titleBlockBoard'),
+  titleBlockStatus: document.querySelector('#titleBlockStatus'),
 };
 
 const mermaid = window.mermaid;
@@ -167,39 +167,12 @@ function createChip(board, { compact = false, active = false, onClick } = {}) {
   return button;
 }
 
-function renderBoardFilter() {
-  if (elements.boardFilterSection) {
-    elements.boardFilterSection.hidden = !HAS_BOARDS;
-  }
-  if (!HAS_BOARDS) {
-    elements.boardFilterList.replaceChildren();
-    return;
-  }
-
-  const fragment = document.createDocumentFragment();
-  // 웹훅 보드를 앞에, 연동 보드는 뒤에 모아 스캔하기 쉽게 한다.
-  const boards = [
-    ...Object.values(BOARDS).filter((board) => board.webhook),
-    ...Object.values(BOARDS).filter((board) => !board.webhook),
-  ];
-  boards.forEach((board) => {
-    fragment.append(
-      createChip(board, {
-        compact: true,
-        active: state.activeBoardId === board.id,
-        onClick: (selected) => setBoardFilter(selected.id === state.activeBoardId ? null : selected.id),
-      }),
-    );
-  });
-  elements.boardFilterList.replaceChildren(fragment);
-  elements.clearBoardFilter.hidden = !state.activeBoardId;
-}
-
 function renderLegend() {
   const fragment = document.createDocumentFragment();
   Object.values(BOARDS).forEach((board) => {
     fragment.append(
       createChip(board, {
+        compact: true,
         active: state.activeBoardId === board.id,
         onClick: (selected) => setBoardFilter(selected.id === state.activeBoardId ? null : selected.id),
       }),
@@ -408,7 +381,6 @@ function ensureActiveMatchesFilter() {
 
 function setBoardFilter(boardId) {
   state.activeBoardId = boardId;
-  renderBoardFilter();
   renderLegend();
   renderNavigation();
   updateNavigationState();
@@ -547,8 +519,8 @@ function withWebhookSourceAnnotation(code, diagram) {
   const annotation = [
     '  WHSRC(["먼데이 변경 알림"])',
     `  WHSRC_NOTE["${noteLabel}"]`,
-    '  classDef whsrc fill:#F5F5F7,stroke:#0066CC,color:#1D1D1F,stroke-width:1.6px',
-    '  classDef whsrcNote fill:transparent,stroke:transparent,color:#6E6E73,stroke-width:0px',
+    '  classDef whsrc fill:#FBFBFC,stroke:#1D7BD6,color:#0D0D0F,stroke-width:1.6px',
+    '  classDef whsrcNote fill:transparent,stroke:transparent,color:#6B6B70,stroke-width:0px',
     '  class WHSRC whsrc',
     '  class WHSRC_NOTE whsrcNote',
   ].join('\n');
@@ -582,45 +554,6 @@ function showRenderError(error) {
   elements.diagramMount.replaceChildren();
 }
 
-function renderMetaSummary(diagram) {
-  const boards = getBoardsForDiagram(diagram);
-  const webhookBoards = getWebhookSourceBoards(diagram);
-  elements.metaSummary.hidden = false;
-  elements.metaSummary.replaceChildren();
-
-  const items = [
-    {
-      label: '관련 보드',
-      value: diagram.title === '전체 구조' ? `${Object.keys(BOARDS).length}개` : `${boards.length}개`,
-    },
-    {
-      label: '변경 알림',
-      value: diagram.title === '전체 구조'
-        ? `${Object.values(BOARDS).filter((board) => board.webhook).length}개 보드`
-        : webhookBoards.length > 0
-          ? webhookBoards.map((board) => board.name).join(' · ')
-          : '없음',
-    },
-  ];
-
-  if (state.activeBoardId && BOARDS[state.activeBoardId]) {
-    items.push({ label: '필터', value: BOARDS[state.activeBoardId].name });
-  }
-
-  items.forEach((item) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'meta-summary__item';
-    const label = document.createElement('div');
-    label.className = 'meta-summary__label';
-    label.textContent = item.label;
-    const value = document.createElement('div');
-    value.className = 'meta-summary__value';
-    value.textContent = item.value;
-    wrap.append(label, value);
-    elements.metaSummary.append(wrap);
-  });
-}
-
 function renderRelatedBoards(diagram) {
   if (!HAS_BOARDS) {
     elements.overviewLegend.hidden = true;
@@ -648,6 +581,7 @@ function renderRelatedBoards(diagram) {
     boards.forEach((board) => {
       fragment.append(
         createChip(board, {
+          compact: true,
           active: state.activeBoardId === board.id,
           onClick: (selected) => setBoardFilter(selected.id === state.activeBoardId ? null : selected.id),
         }),
@@ -657,9 +591,25 @@ function renderRelatedBoards(diagram) {
   elements.relatedBoardList.replaceChildren(fragment);
 }
 
+function setTitleBlock({ file, nodes, board, status }) {
+  if (elements.titleBlockFile && file !== undefined) {
+    elements.titleBlockFile.textContent = file;
+  }
+  if (elements.titleBlockNodes && nodes !== undefined) {
+    elements.titleBlockNodes.textContent = nodes;
+  }
+  if (elements.titleBlockBoard && board !== undefined) {
+    elements.titleBlockBoard.textContent = board;
+  }
+  if (elements.titleBlockStatus && status !== undefined) {
+    elements.titleBlockStatus.textContent = status;
+  }
+}
+
 async function renderDiagram(diagram) {
   elements.diagramError.hidden = true;
   elements.diagramStatus.textContent = '렌더링 중';
+  setTitleBlock({ status: 'RENDERING' });
 
   const isOverview = diagram === getOverview();
   const interactiveNodes = isOverview ? getInteractiveNodeMap(diagram.mermaidCode) : new Map();
@@ -688,10 +638,19 @@ async function renderDiagram(diagram) {
       ? '색이 있는 노드는 보드/파일 성격 · 파일 노드 클릭 시 상세'
         : webhookBoards.length > 0
         ? `먼데이 변경 알림 - ${webhookBoards.map((board) => board.name).join(' · ')}`
-        : '관련 보드 칩으로 필터하거나 사이드바에서 다른 파일로 이동';
+        : '이 흐름의 보드 칩으로 필터하거나 사이드바에서 다른 파일로 이동';
+
+    const board = primaryBoard(diagram);
+    const nodeCount = elements.diagramMount.querySelectorAll('.node').length;
+    setTitleBlock({
+      nodes: nodeCount,
+      board: board ? board.name : '—',
+      status: 'RENDERED',
+    });
   } catch (error) {
     if (renderSequence === state.renderSequence && diagram.id === state.activeId) {
       showRenderError(error);
+      setTitleBlock({ status: 'ERROR' });
     }
   }
 }
@@ -713,8 +672,8 @@ async function showDiagram(diagramId) {
     ? '웹훅 보드 → 알림/싱크/정량화/시트 동기화 연결'
     : diagram.title;
 
-  renderMetaSummary(diagram);
   renderRelatedBoards(diagram);
+  setTitleBlock({ file: isOverview ? '전체 구조' : diagram.fileName });
   await renderDiagram(diagram);
 }
 
@@ -725,7 +684,6 @@ function showLoadError(error) {
   elements.diagramError.hidden = false;
   elements.diagramError.textContent = `다이어그램 데이터를 불러오지 못했습니다. ${message}`;
   elements.diagramTitle.textContent = '데이터 로드 실패';
-  elements.metaSummary.hidden = true;
 }
 
 async function loadDiagrams() {
@@ -740,7 +698,6 @@ async function loadDiagrams() {
       throw new Error('다이어그램 항목이 없습니다.');
     }
 
-    renderBoardFilter();
     renderNavigation();
     setDataStatus(`${state.diagrams.length}개 다이어그램 · 보드 ${Object.keys(BOARDS).length}개`);
     await showDiagram(getOverview().id);
@@ -763,7 +720,6 @@ elements.backButton.addEventListener('click', () => {
   }
   showDiagram(getOverview().id);
 });
-elements.clearBoardFilter.addEventListener('click', () => setBoardFilter(null));
 if (elements.navClearFilter) {
   elements.navClearFilter.addEventListener('click', () => setBoardFilter(null));
 }
@@ -775,25 +731,25 @@ mermaid.initialize({
   theme: 'base',
   flowchart: {
     curve: 'basis',
-    padding: 14,
-    nodeSpacing: 28,
-    rankSpacing: 36,
+    padding: 22,
+    nodeSpacing: 48,
+    rankSpacing: 56,
     htmlLabels: true,
   },
   themeVariables: {
-    fontFamily: '"Avenir Next", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif',
-    fontSize: '15px',
-    primaryColor: '#e7f4f1',
-    primaryTextColor: '#243140',
-    primaryBorderColor: '#2f9f90',
-    lineColor: '#7a8794',
-    secondaryColor: '#f2f5f8',
-    tertiaryColor: '#fbfcfd',
-    mainBkg: '#f4f7fa',
-    nodeBorder: '#98a6b3',
-    clusterBkg: '#f4f7fa',
-    titleColor: '#2b3846',
-    edgeLabelBackground: '#fbfcfd',
+    fontFamily: '"Inter", -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif',
+    fontSize: '13px',
+    primaryColor: '#eef2f6',
+    primaryTextColor: '#0d0d0f',
+    primaryBorderColor: '#c8cdd3',
+    lineColor: '#b0b4ba',
+    secondaryColor: '#f4f5f7',
+    tertiaryColor: '#fbfbfc',
+    mainBkg: '#f4f5f7',
+    nodeBorder: '#c8cdd3',
+    clusterBkg: '#f4f5f7',
+    titleColor: '#0d0d0f',
+    edgeLabelBackground: '#f4f5f7',
   },
 });
 
