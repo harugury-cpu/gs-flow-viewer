@@ -19,6 +19,25 @@ Google Apps Script(GAS) 자동화 프로젝트의 파일별 흐름을 Mermaid �
 
 Node.js 내장 모듈만 사용하므로 `npm install` 없이 바로 실행됩니다.
 
+## GAS 변경 자동 반영 hook
+
+상위 `monday-automation` 저장소는 `.githooks/pre-commit`을 사용합니다. 커밋할
+변경에 `.gs` 파일이 포함되면 Codex가 해당 파일의 흐름을 다시 읽고
+`Monday_GS_Mermaid_Diagrams.md`의 관련 Mermaid 섹션을 갱신한 뒤, 다이어그램 파일을
+같은 커밋에 자동으로 stage합니다.
+
+최초 한 번만 저장소에서 hook 경로를 설정합니다.
+
+```bash
+git config core.hooksPath .githooks
+```
+
+의도적으로 자동 갱신을 건너뛸 때만 다음 환경 변수를 사용합니다.
+
+```bash
+GS_FLOW_VIEWER_HOOK_SKIP=1 git commit
+```
+
 ## 무엇을 보여주나
 
 - 좌측 사이드바에서 `전체 구조` 또는 파일별 상세 흐름을 선택합니다.
