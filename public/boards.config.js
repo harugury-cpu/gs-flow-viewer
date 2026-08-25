@@ -165,6 +165,7 @@ window.BOARDS_CONFIG = {
     '13_PersonalWorkSyncService.gs': ['quant'],
     '14_AdminAlertService.gs': ['quant'],
     '15_DashboardService.gs': ['quant'],
+    '16_MorningResendService.gs': ['quant'],
     '99_ManualTest.gs': ['quant'],
     'mon_api.gs': [],
   },
