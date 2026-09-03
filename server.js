@@ -29,13 +29,19 @@ function parseDiagrams(markdown) {
   // fileName이 여러 폴더(파일이 여러 시트/프로젝트에 복사되는 경우)에서 겹칠 수 있으므로
   // title(전체 경로) 기준으로만 유지하고 fileName으로는 중복 제거하지 않는다.
   while ((match = sectionPattern.exec(markdown)) !== null) {
-    const title = match[1];
+    const heading = match[1];
+    const separatorIndex = heading.indexOf(' | ');
+    const title = separatorIndex === -1 ? heading : heading.slice(0, separatorIndex).trim();
     const fileName = extractFileName(title);
+    const displayName = separatorIndex === -1
+      ? fileName
+      : heading.slice(separatorIndex + 3).trim();
 
     diagrams.push({
       id: diagrams.length === 0 ? 'overview' : `diagram-${diagrams.length}`,
       title,
       fileName,
+      displayName,
       mermaidCode: match[2],
     });
   }
