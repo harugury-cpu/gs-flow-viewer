@@ -46,6 +46,7 @@ const GROUP_ORDER = [
   '공용 시트',
   '1파트 시트',
   '패키지 정량화 시트',
+  '미사용 gs',
   '기타',
 ];
 
@@ -54,7 +55,9 @@ function getOverview() {
 }
 
 function getDetailByFileName(fileName) {
-  return state.diagrams.find((diagram) => diagram.fileName === fileName && diagram.title !== '전체 구조');
+  return state.diagrams.find((diagram) => (
+    diagram.fileName === fileName || diagram.displayName === fileName
+  ) && diagram.title !== '전체 구조');
 }
 
 function cleanFileName(fileName) {
@@ -123,7 +126,7 @@ function createChip(board, { compact = false, active = false, onClick } = {}) {
   button.style.setProperty('--chip-color', board.color);
   button.dataset.boardId = board.id;
   button.setAttribute('role', 'listitem');
-  button.title = `${board.mondayName}${board.boardId ? ` · ${board.boardId}` : ''}${board.webhook ? ` · 웹훅: ${board.webhookNote || '발생 보드'}` : ''}`;
+  button.title = `${board.mondayName}${board.webhook ? ` · 변경 알림: ${board.webhookNote || '발생 보드'}` : ''}`;
 
   const swatch = document.createElement('span');
   swatch.className = 'chip__swatch';
@@ -144,7 +147,7 @@ function createChip(board, { compact = false, active = false, onClick } = {}) {
   if (board.webhook) {
     const badge = document.createElement('span');
     badge.className = 'chip__webhook-badge';
-    badge.textContent = 'WEBHOOK';
+    badge.textContent = '변경 알림';
     nameRow.append(badge);
   }
   body.append(nameRow);
@@ -153,8 +156,8 @@ function createChip(board, { compact = false, active = false, onClick } = {}) {
     const meta = document.createElement('span');
     meta.className = 'chip__meta';
     meta.textContent = board.webhook
-      ? `웹훅 · ${board.webhookNote || board.boardId}`
-      : board.boardId || '연동 보드';
+      ? `변경 알림 · ${board.webhookNote || 'Monday에서 변경 발생'}`
+      : '연동 보드';
     body.append(meta);
   }
 
@@ -187,7 +190,7 @@ function createNavButton(diagram, isOverview) {
   button.type = 'button';
   button.className = `nav-item${isOverview ? ' nav-item--overview' : ''}`;
   button.dataset.diagramId = diagram.id;
-  button.title = diagram.title;
+  button.title = isOverview ? '전체 구조' : diagram.fileName;
   button.style.setProperty('--item-color', board ? board.color : 'oklch(0.7 0.05 210)');
   button.setAttribute('aria-current', diagram.id === state.activeId ? 'page' : 'false');
 
@@ -205,20 +208,13 @@ function createNavButton(diagram, isOverview) {
   content.append(label);
 
   if (!isOverview) {
-    const path = document.createElement('span');
-    path.className = 'nav-item__path';
-    path.textContent = diagram.title.includes('/')
-      ? diagram.title.slice(0, diagram.title.lastIndexOf('/'))
-      : '';
-    content.append(path);
-
     const badges = document.createElement('span');
     badges.className = 'nav-item__badges';
     const boards = getBoardsForDiagram(diagram);
     if (boards.some((item) => item.webhook)) {
       const webhookBadge = document.createElement('span');
       webhookBadge.className = 'mini-badge mini-badge--webhook';
-      webhookBadge.textContent = 'WEBHOOK';
+      webhookBadge.textContent = 'MONDAY 변경';
       badges.append(webhookBadge);
     }
     boards.slice(0, 3).forEach((item) => {
@@ -424,6 +420,11 @@ function getInteractiveNodeMap(code) {
   return nodeMap;
 }
 
+function matchesRenderedNodeId(renderedId, nodeId) {
+  const marker = `flowchart-${nodeId}-`;
+  return renderedId.startsWith(marker) || renderedId.includes(`-${marker}`);
+}
+
 function buildInteractiveOverviewCode(code) {
   const clickLines = [];
   const nodeMap = getInteractiveNodeMap(code);
@@ -452,14 +453,14 @@ function resolveBoardFromLabel(label) {
 function bindAccessibleNodes(nodeMap) {
   const nodes = [...elements.diagramMount.querySelectorAll('.node')];
   nodeMap.forEach((fileName, nodeId) => {
-    const node = nodes.find((item) => item.id.startsWith(`flowchart-${nodeId}-`));
+    const node = nodes.find((item) => matchesRenderedNodeId(item.id, nodeId));
     if (!node) {
       return;
     }
     node.classList.add('is-drilldown');
     node.setAttribute('tabindex', '0');
     node.setAttribute('role', 'button');
-    node.setAttribute('aria-label', `${fileName} 상세 흐름 열기`);
+      node.setAttribute('aria-label', `${fileName} 상세 흐름 열기`);
     node.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
@@ -474,7 +475,7 @@ function colorizeRenderedNodes(code) {
   const nodes = [...elements.diagramMount.querySelectorAll('.node')];
 
   labels.forEach((label, nodeId) => {
-    const node = nodes.find((item) => item.id.startsWith(`flowchart-${nodeId}-`));
+    const node = nodes.find((item) => matchesRenderedNodeId(item.id, nodeId));
     if (!node) {
       return;
     }
@@ -635,7 +636,7 @@ async function renderDiagram(diagram) {
     elements.diagramStatus.textContent = '렌더링 완료';
     const webhookBoards = getWebhookSourceBoards(diagram);
     elements.diagramHint.textContent = isOverview
-      ? '색이 있는 노드는 보드/파일 성격 · 파일 노드 클릭 시 상세'
+      ? '업무 노드를 클릭하면 실행 조건과 분기 기준을 볼 수 있습니다'
         : webhookBoards.length > 0
         ? `먼데이 변경 알림 - ${webhookBoards.map((board) => board.name).join(' · ')}`
         : '이 흐름의 보드 칩으로 필터하거나 사이드바에서 다른 파일로 이동';
@@ -667,13 +668,13 @@ async function showDiagram(diagramId) {
   const isOverview = diagram === getOverview();
   elements.backButton.hidden = isOverview;
   elements.diagramKicker.textContent = isOverview ? '전체 구조' : getGroupName(diagram);
-  elements.diagramTitle.textContent = isOverview ? 'Monday GAS 자동화 전체 구조' : diagram.fileName;
+  elements.diagramTitle.textContent = isOverview ? 'Monday 업무 자동화 전체 흐름' : diagram.displayName;
   elements.diagramPath.textContent = isOverview
     ? '웹훅 보드 → 알림/싱크/정량화/시트 동기화 연결'
-    : diagram.title;
+    : getGroupName(diagram);
 
   renderRelatedBoards(diagram);
-  setTitleBlock({ file: isOverview ? '전체 구조' : diagram.fileName });
+  setTitleBlock({ file: isOverview ? '전체 구조' : diagram.displayName });
   await renderDiagram(diagram);
 }
 
