@@ -13,6 +13,7 @@ const elements = {
   diagramKicker: document.querySelector('#diagramKicker'),
   diagramMount: document.querySelector('#diagramMount'),
   diagramNavList: document.querySelector('#diagramNavList'),
+  diagramPanel: document.querySelector('#diagramPanel'),
   diagramPath: document.querySelector('#diagramPath'),
   diagramStatus: document.querySelector('#diagramStatus'),
   diagramTitle: document.querySelector('#diagramTitle'),
@@ -232,7 +233,10 @@ function createNavButton(diagram, isOverview) {
   }
 
   button.append(content);
-  button.addEventListener('click', () => showDiagram(diagram.id));
+  button.addEventListener('click', (event) => showDiagram(diagram.id, {
+    reveal: true,
+    focusPanel: event.detail === 0,
+  }));
   return button;
 }
 
@@ -501,6 +505,98 @@ function colorizeRenderedNodes(code) {
   });
 }
 
+function getRenderedEdgeEndpoints(path) {
+  const classes = [...path.classList];
+  const from = classes.find((name) => name.startsWith('LS-'))?.slice(3);
+  const to = classes.find((name) => name.startsWith('LE-'))?.slice(3);
+  return from && to ? { from, to } : null;
+}
+
+function parseFlowEdges(code) {
+  const edgePattern = /^\s*([A-Za-z][A-Za-z0-9_-]*)[\s\S]*?(?:-->|-\.->|==>)\s*([A-Za-z][A-Za-z0-9_-]*)/;
+  return String(code || '')
+    .split('\n')
+    .map((line) => line.match(edgePattern))
+    .filter(Boolean)
+    .map((match) => ({ from: match[1], to: match[2] }));
+}
+
+/** Mermaid 연결 관계를 따라 Archify와 같은 단계별 trace 순서를 계산한다. */
+function getFlowAnimationSteps(paths, code) {
+  const sourceEdges = parseFlowEdges(code);
+  const edges = paths.map((path, index) => ({
+    path,
+    index,
+    endpoints: sourceEdges[index] || getRenderedEdgeEndpoints(path),
+  }));
+  const nodeIds = new Set();
+  const incoming = new Map();
+  const outgoing = new Map();
+
+  edges.forEach((edge) => {
+    if (!edge.endpoints) {
+      return;
+    }
+    const { from, to } = edge.endpoints;
+    nodeIds.add(from);
+    nodeIds.add(to);
+    incoming.set(to, (incoming.get(to) || 0) + 1);
+    if (!outgoing.has(from)) {
+      outgoing.set(from, []);
+    }
+    outgoing.get(from).push(edge);
+  });
+
+  const nodeSteps = new Map();
+  const queue = [...nodeIds].filter((nodeId) => !incoming.has(nodeId));
+  queue.forEach((nodeId) => nodeSteps.set(nodeId, 0));
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+    const nextStep = Math.min((nodeSteps.get(nodeId) || 0) + 1, 12);
+    (outgoing.get(nodeId) || []).forEach((edge) => {
+      const target = edge.endpoints.to;
+      if (!nodeSteps.has(target)) {
+        nodeSteps.set(target, nextStep);
+        queue.push(target);
+      }
+    });
+  }
+
+  return { edges, nodeSteps };
+}
+
+/** Archify trace: 원본 관계선이 실제 연결 단계에 맞춰 계속 흐른다. */
+function addFlowAnimation(diagram, code) {
+  const board = primaryBoard(diagram);
+  elements.diagramMount.style.setProperty('--flow-color', board ? board.color : 'var(--accent)');
+
+  const paths = [...elements.diagramMount.querySelectorAll('.edgePaths path.flowchart-link')];
+  const { edges, nodeSteps } = getFlowAnimationSteps(paths, code);
+  edges.forEach((edge) => {
+    const step = edge.endpoints && nodeSteps.has(edge.endpoints.from)
+      ? nodeSteps.get(edge.endpoints.from)
+      : Math.min(edge.index, 12);
+    edge.path.classList.add('is-flow-animated');
+    edge.path.style.setProperty('--flow-step', step);
+  });
+}
+
+function revealDiagramPanel({ focus = false } = {}) {
+  if (!elements.diagramPanel) {
+    return;
+  }
+
+  const rect = elements.diagramPanel.getBoundingClientRect();
+  const panelStartIsVisible = rect.top >= 0 && rect.top <= window.innerHeight * 0.45;
+  if (!panelStartIsVisible) {
+    elements.diagramPanel.scrollIntoView({ behavior: 'auto', block: 'start' });
+    if (focus) {
+      elements.diagramPanel.focus({ preventScroll: true });
+    }
+  }
+}
+
 function getWebhookSourceBoards(diagram) {
   if (!diagram || isOverviewDiagram(diagram)) {
     return [];
@@ -633,6 +729,7 @@ async function renderDiagram(diagram) {
     }
     bindAccessibleNodes(interactiveNodes);
     colorizeRenderedNodes(annotatedCode);
+    addFlowAnimation(diagram, annotatedCode);
     elements.diagramStatus.textContent = '렌더링 완료';
     const webhookBoards = getWebhookSourceBoards(diagram);
     elements.diagramHint.textContent = isOverview
@@ -656,7 +753,7 @@ async function renderDiagram(diagram) {
   }
 }
 
-async function showDiagram(diagramId) {
+async function showDiagram(diagramId, { reveal = false, focusPanel = false } = {}) {
   const diagram = state.diagrams.find((item) => item.id === diagramId);
   if (!diagram) {
     return;
@@ -676,6 +773,9 @@ async function showDiagram(diagramId) {
   renderRelatedBoards(diagram);
   setTitleBlock({ file: isOverview ? '전체 구조' : diagram.displayName });
   await renderDiagram(diagram);
+  if (reveal && diagram.id === state.activeId) {
+    revealDiagramPanel({ focus: focusPanel });
+  }
 }
 
 function showLoadError(error) {
@@ -710,7 +810,7 @@ async function loadDiagrams() {
 window.onNodeClick = (fileName) => {
   const detail = getDetailByFileName(cleanFileName(fileName));
   if (detail) {
-    showDiagram(detail.id);
+    showDiagram(detail.id, { reveal: true });
   }
 };
 
@@ -719,7 +819,7 @@ elements.backButton.addEventListener('click', () => {
   if (state.activeBoardId) {
     setBoardFilter(null);
   }
-  showDiagram(getOverview().id);
+  showDiagram(getOverview().id, { reveal: true });
 });
 if (elements.navClearFilter) {
   elements.navClearFilter.addEventListener('click', () => setBoardFilter(null));

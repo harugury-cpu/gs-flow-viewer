@@ -98,6 +98,7 @@
 ### Navigation rail (사이드바)
 
 - **구조**: `aside > header + nav > button`. 배경은 본문과 동일, `border-right` 1px로만 구분.
+- **스크롤 소유권**: 데스크톱에서는 사이드바가 `100dvh`에 고정되고 파일 목록(`.diagram-nav`)만 세로 스크롤한다. 960px 이하에서는 문서 흐름으로 복귀하며 파일 선택 후 차트 시작점으로 이동한다.
 - **파일 인덱스 도트**: `nav-item__rail`을 6px 원형 도트로, 보드 색상을 그대로 표시.
 - **모션**: 배경색 전환만(`200ms cubic-bezier(.23,1,.32,1)`), `prefers-reduced-motion` 존중.
 
@@ -115,7 +116,9 @@
 ## 6. Motion & Interaction
 
 - Micro: `200ms cubic-bezier(0.23, 1, 0.32, 1)` — X Business의 ease-out 커브
+- Flow trace: Mermaid 원본 관계선의 색·밝기를 고정한 채 `10 8` dash와 `54 → 0` offset을 2.4초마다 계속 흘리고, 연결 단계마다 160ms 위상 차이를 둔다. 노드 글로우·펄스, 선 페이드·굵기 변화는 적용하지 않는다.
 - `prefers-reduced-motion: reduce`에서 전환 비활성화
+- `prefers-reduced-motion: reduce`에서는 전류 레이어도 숨기고 정적인 원본 관계선만 표시한다.
 - Mermaid 노드 클릭은 선택적 드릴다운, 사이드바 버튼이 주 내비게이션
 
 ## 7. Depth & Surface

@@ -72,8 +72,11 @@ button:focus-visible,
 
 /* ——— Sidebar ——— */
 .sidebar {
+  position: sticky;
+  top: 0;
   display: flex;
-  min-height: 100dvh;
+  height: 100dvh;
+  min-height: 0;
   flex-direction: column;
   overflow: hidden;
   color: var(--fg-primary);
@@ -713,6 +716,31 @@ button:focus-visible,
   cursor: default;
 }
 
+/* Archify trace: 노드 효과 없이 원본 관계선만 단계별 위상으로 계속 흐른다. */
+.diagram-mount .edgePaths path.flowchart-link.is-flow-animated {
+  stroke-linecap: round;
+  animation: archify-edge-flow 2.4s linear infinite;
+  animation-delay: calc(var(--flow-step, 0) * 160ms);
+}
+
+@keyframes archify-edge-flow {
+  0% {
+    stroke-dasharray: 10 8;
+    stroke-dashoffset: 54;
+  }
+  88% {
+    stroke-dasharray: 10 8;
+    stroke-dashoffset: 0;
+  }
+  99.9% {
+    stroke-dasharray: 10 8;
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
 .diagram-mount .node.is-drilldown {
   cursor: pointer;
 }
@@ -813,6 +841,8 @@ button:focus-visible,
   }
 
   .sidebar {
+    position: static;
+    height: auto;
     min-height: auto;
   }
 
@@ -873,5 +903,8 @@ button:focus-visible,
   .back-button {
     transition: none;
   }
-}
 
+  .diagram-mount .edgePaths path.flowchart-link.is-flow-animated {
+    animation: none;
+  }
+}
