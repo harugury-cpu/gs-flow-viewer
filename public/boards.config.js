@@ -144,7 +144,6 @@ window.BOARDS_CONFIG = {
     '기종명매핑_ai.gs': ['security', 'mobile'],
     '2part_chat_jBw.gs': ['wo', 'life'],
     'bom_sync.gs': [],
-    'pkg_design_sync.gs': ['pkgMaster'],
     'part_T0 가져오기.gs': ['mobile', 'dev'],
     'part_장탈착 확인.Tism.gs': ['foldable', 'dev'],
     'part_폴더블_QR_시트동기화.gs': ['foldable', 'dev'],
