@@ -3,17 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Monday 업무 자동화의 실행 조건과 판단 기준을 살펴보는 흐름도">
-    <title>Monday 자동화 흐름</title>
+    <meta name="description" content="프로젝트의 실행 조건과 판단 기준을 살펴보는 흐름도">
+    <title>프로젝트 흐름</title>
     <link rel="stylesheet" href="/style.css">
   </head>
   <body>
     <div class="app-shell" id="app">
       <aside class="sidebar" aria-label="다이어그램 탐색">
         <div class="sidebar__brand">
-          <p class="eyebrow">MONDAY AUTOMATION</p>
-          <h1>Monday 자동화 흐름</h1>
-          <p class="sidebar__lede">실행 조건 · 판단 기준 · 업무 결과</p>
+          <p class="eyebrow" id="brandEyebrow">PROJECT FLOW</p>
+          <h1 id="brandTitle">프로젝트 흐름</h1>
+          <p class="sidebar__lede" id="brandSubtitle">실행 조건 · 판단 기준 · 결과</p>
         </div>
 
         <nav class="diagram-nav" aria-label="다이어그램 목록">
@@ -46,13 +46,13 @@
             </div>
           </div>
 
-          <section id="relatedBoardsSection" class="related-boards" aria-label="관련 보드" hidden>
-            <h3 class="related-boards__title">이 흐름의 보드</h3>
-            <div id="relatedBoardList" class="chip-list chip-list--lg"></div>
+          <section id="relatedFiltersSection" class="related-filters" aria-label="관련 분류" hidden>
+            <h3 class="related-filters__title" id="relatedTitle">이 흐름의 분류</h3>
+            <div id="relatedFilterList" class="chip-list chip-list--lg"></div>
           </section>
 
-          <section id="overviewLegend" class="overview-legend" aria-label="보드 색 범례" hidden>
-            <h3 class="related-boards__title">보드 색 범례</h3>
+          <section id="overviewLegend" class="overview-legend" aria-label="분류 색 범례" hidden>
+            <h3 class="related-filters__title" id="legendTitle">분류 색 범례</h3>
             <div id="legendList" class="chip-list chip-list--lg"></div>
           </section>
         </header>
@@ -68,7 +68,7 @@
           </div>
           <div class="title-block" aria-hidden="true">
             <div class="title-block__cell">
-              <span class="title-block__label">업무</span>
+              <span class="title-block__label">흐름</span>
               <span id="titleBlockFile" class="title-block__value">—</span>
             </div>
             <div class="title-block__cell">
@@ -76,8 +76,8 @@
               <span id="titleBlockNodes" class="title-block__value">—</span>
             </div>
             <div class="title-block__cell">
-              <span class="title-block__label">관련 보드</span>
-              <span id="titleBlockBoard" class="title-block__value">—</span>
+              <span class="title-block__label" id="titleBlockFilterLabel">관련 분류</span>
+              <span id="titleBlockFilter" class="title-block__value">—</span>
             </div>
             <div class="title-block__cell">
               <span class="title-block__label">표시 상태</span>
@@ -89,7 +89,7 @@
     </div>
 
     <script src="/vendor/mermaid.min.js"></script>
-    <script src="/boards.config.js"></script>
+    <script src="/viewer.config.js"></script>
     <script type="module">
       function showLoadError(detail) {
         const status = document.querySelector('#diagramStatus');

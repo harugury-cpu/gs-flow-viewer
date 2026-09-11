@@ -2,11 +2,14 @@ const state = {
   diagrams: [],
   activeId: null,
   renderSequence: 0,
-  activeBoardId: null,
+  activeFilterId: null,
 };
 
 const elements = {
   backButton: document.querySelector('#backButton'),
+  brandEyebrow: document.querySelector('#brandEyebrow'),
+  brandSubtitle: document.querySelector('#brandSubtitle'),
+  brandTitle: document.querySelector('#brandTitle'),
   dataStatus: document.querySelector('#dataStatus'),
   diagramError: document.querySelector('#diagramError'),
   diagramHint: document.querySelector('#diagramHint'),
@@ -18,38 +21,73 @@ const elements = {
   diagramStatus: document.querySelector('#diagramStatus'),
   diagramTitle: document.querySelector('#diagramTitle'),
   legendList: document.querySelector('#legendList'),
+  legendTitle: document.querySelector('#legendTitle'),
   navClearFilter: document.querySelector('#navClearFilter'),
   navFilterCount: document.querySelector('#navFilterCount'),
   navFilterLabel: document.querySelector('#navFilterLabel'),
   navToolbar: document.querySelector('#navToolbar'),
   overviewLegend: document.querySelector('#overviewLegend'),
-  relatedBoardList: document.querySelector('#relatedBoardList'),
-  relatedBoardsSection: document.querySelector('#relatedBoardsSection'),
+  relatedFilterList: document.querySelector('#relatedFilterList'),
+  relatedFiltersSection: document.querySelector('#relatedFiltersSection'),
+  relatedTitle: document.querySelector('#relatedTitle'),
   sidebar: document.querySelector('.sidebar'),
   titleBlockFile: document.querySelector('#titleBlockFile'),
   titleBlockNodes: document.querySelector('#titleBlockNodes'),
-  titleBlockBoard: document.querySelector('#titleBlockBoard'),
+  titleBlockFilter: document.querySelector('#titleBlockFilter'),
+  titleBlockFilterLabel: document.querySelector('#titleBlockFilterLabel'),
   titleBlockStatus: document.querySelector('#titleBlockStatus'),
 };
 
 const mermaid = window.mermaid;
 
-/** 보드 색상/필터 설정은 public/boards.config.js(선택 사항)에서 온다. 비어 있으면 관련 UI는 자동 숨김. */
-const boardsConfig = window.BOARDS_CONFIG || {};
-const BOARDS = boardsConfig.boards || {};
-const BOARD_ALIASES = boardsConfig.boardAliases || [];
-const FILE_BOARD_MAP = boardsConfig.fileBoardMap || {};
-const HAS_BOARDS = Object.keys(BOARDS).length > 0;
+/** 프로젝트별 제목·그룹·필터 설정. 비어 있으면 순수 Mermaid 뷰어로 동작한다. */
+const viewerConfig = window.FLOW_VIEWER_CONFIG || {};
+const UI = {
+  eyebrow: 'PROJECT FLOW',
+  title: '프로젝트 흐름',
+  subtitle: '실행 조건 · 판단 기준 · 결과',
+  overviewTitle: '프로젝트 전체 흐름',
+  overviewDescription: '구성 요소와 실행 흐름의 연결',
+  filterLabel: '분류',
+  relatedTitle: '이 흐름의 분류',
+  legendTitle: '분류 색 범례',
+  featuredBadge: '주요 진입점',
+  featuredAnnotation: '주요 실행 진입점',
+  ...viewerConfig.ui,
+};
+const filtersConfig = viewerConfig.filters || {};
+const FILTER_ITEMS = filtersConfig.items || {};
+const FILTER_ALIASES = filtersConfig.aliases || [];
+const FILE_FILTER_MAP = filtersConfig.fileMap || {};
+const HAS_FILTER_ITEMS = Object.keys(FILTER_ITEMS).length > 0;
 
 const GROUP_ORDER = [
   '전체',
-  'API 시트',
-  '공용 시트',
-  '1파트 시트',
-  '패키지 정량화 시트',
-  '미사용 gs',
+  ...(Array.isArray(viewerConfig.preferredGroups) ? viewerConfig.preferredGroups : []),
   '기타',
 ];
+
+function isFeatured(item) {
+  return Boolean(item && item.featured);
+}
+
+function getItemNote(item) {
+  return item ? (item.note || '') : '';
+}
+
+function getItemFullName(item) {
+  return item ? (item.fullName || item.name || '') : '';
+}
+
+function applyUiConfig() {
+  document.title = UI.title;
+  elements.brandEyebrow.textContent = UI.eyebrow;
+  elements.brandTitle.textContent = UI.title;
+  elements.brandSubtitle.textContent = UI.subtitle;
+  elements.relatedTitle.textContent = UI.relatedTitle;
+  elements.legendTitle.textContent = UI.legendTitle;
+  elements.titleBlockFilterLabel.textContent = `관련 ${UI.filterLabel}`;
+}
 
 function getOverview() {
   return state.diagrams.find((diagram) => diagram.title === '전체 구조') || state.diagrams[0];
@@ -76,43 +114,43 @@ function getGroupName(diagram) {
   return parts.length >= 2 ? parts[parts.length - 2] : '기타';
 }
 
-function getBoardsForDiagram(diagram) {
+function getFiltersForDiagram(diagram) {
   if (!diagram || diagram.title === '전체 구조') {
-    return Object.values(BOARDS).filter((board) => board.webhook);
+    return Object.values(FILTER_ITEMS).filter((filterItem) => isFeatured(filterItem));
   }
-  const ids = FILE_BOARD_MAP[cleanFileName(diagram.fileName)] || [];
-  return ids.map((id) => BOARDS[id]).filter(Boolean);
+  const ids = FILE_FILTER_MAP[cleanFileName(diagram.fileName)] || [];
+  return ids.map((id) => FILTER_ITEMS[id]).filter(Boolean);
 }
 
-function primaryBoard(diagram) {
-  const boards = getBoardsForDiagram(diagram);
-  return boards.find((board) => board.webhook) || boards[0] || null;
+function primaryFilter(diagram) {
+  const filterItems = getFiltersForDiagram(diagram);
+  return filterItems.find((filterItem) => isFeatured(filterItem)) || filterItems[0] || null;
 }
 
 function isOverviewDiagram(diagram) {
   return Boolean(diagram && (diagram.id === 'overview' || diagram.title === '전체 구조'));
 }
 
-function diagramMatchesBoard(diagram, boardId) {
-  if (!boardId) {
+function diagramMatchesFilter(diagram, filterId) {
+  if (!filterId) {
     return true;
   }
-  // 보드 필터 중에는 전체 구조를 결과에 넣지 않는다. 상세 파일만 좁혀 보여 준다.
+  // 분류 필터 중에는 전체 구조를 결과에 넣지 않는다. 상세 파일만 좁혀 보여 준다.
   if (isOverviewDiagram(diagram)) {
     return false;
   }
-  return getBoardsForDiagram(diagram).some((board) => board.id === boardId);
+  return getFiltersForDiagram(diagram).some((filterItem) => filterItem.id === filterId);
 }
 
-function getFilteredDiagrams(boardId = state.activeBoardId) {
-  if (!boardId) {
+function getFilteredDiagrams(filterId = state.activeFilterId) {
+  if (!filterId) {
     return state.diagrams.slice();
   }
-  return state.diagrams.filter((diagram) => diagramMatchesBoard(diagram, boardId));
+  return state.diagrams.filter((diagram) => diagramMatchesFilter(diagram, filterId));
 }
 
-function getFirstFilteredDetail(boardId = state.activeBoardId) {
-  return getFilteredDiagrams(boardId).find((diagram) => !isOverviewDiagram(diagram)) || null;
+function getFirstFilteredDetail(filterId = state.activeFilterId) {
+  return getFilteredDiagrams(filterId).find((diagram) => !isOverviewDiagram(diagram)) || null;
 }
 
 function setDataStatus(message, isError = false) {
@@ -120,14 +158,14 @@ function setDataStatus(message, isError = false) {
   elements.dataStatus.classList.toggle('is-error', isError);
 }
 
-function createChip(board, { compact = false, active = false, onClick } = {}) {
+function createChip(filterItem, { compact = false, active = false, onClick } = {}) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = `chip${board.webhook ? ' is-webhook' : ''}${active ? ' is-active' : ''}`;
-  button.style.setProperty('--chip-color', board.color);
-  button.dataset.boardId = board.id;
+  button.className = `chip${isFeatured(filterItem) ? ' is-featured' : ''}${active ? ' is-active' : ''}`;
+  button.style.setProperty('--chip-color', filterItem.color);
+  button.dataset.filterId = filterItem.id;
   button.setAttribute('role', 'listitem');
-  button.title = `${board.mondayName}${board.webhook ? ` · 변경 알림: ${board.webhookNote || '발생 보드'}` : ''}`;
+  button.title = `${getItemFullName(filterItem)}${isFeatured(filterItem) ? ` · ${UI.featuredBadge}: ${getItemNote(filterItem) || filterItem.name}` : ''}`;
 
   const swatch = document.createElement('span');
   swatch.className = 'chip__swatch';
@@ -142,13 +180,13 @@ function createChip(board, { compact = false, active = false, onClick } = {}) {
 
   const name = document.createElement('span');
   name.className = 'chip__name';
-  name.textContent = board.name;
+  name.textContent = filterItem.name;
   nameRow.append(name);
 
-  if (board.webhook) {
+  if (isFeatured(filterItem)) {
     const badge = document.createElement('span');
-    badge.className = 'chip__webhook-badge';
-    badge.textContent = '변경 알림';
+    badge.className = 'chip__featured-badge';
+    badge.textContent = UI.featuredBadge;
     nameRow.append(badge);
   }
   body.append(nameRow);
@@ -156,16 +194,16 @@ function createChip(board, { compact = false, active = false, onClick } = {}) {
   if (!compact) {
     const meta = document.createElement('span');
     meta.className = 'chip__meta';
-    meta.textContent = board.webhook
-      ? `변경 알림 · ${board.webhookNote || 'Monday에서 변경 발생'}`
-      : '연동 보드';
+    meta.textContent = isFeatured(filterItem)
+      ? `${UI.featuredBadge} · ${getItemNote(filterItem) || filterItem.name}`
+      : UI.filterLabel;
     body.append(meta);
   }
 
   button.append(body);
 
   if (typeof onClick === 'function') {
-    button.addEventListener('click', () => onClick(board));
+    button.addEventListener('click', () => onClick(filterItem));
   }
 
   return button;
@@ -173,12 +211,12 @@ function createChip(board, { compact = false, active = false, onClick } = {}) {
 
 function renderLegend() {
   const fragment = document.createDocumentFragment();
-  Object.values(BOARDS).forEach((board) => {
+  Object.values(FILTER_ITEMS).forEach((filterItem) => {
     fragment.append(
-      createChip(board, {
+      createChip(filterItem, {
         compact: true,
-        active: state.activeBoardId === board.id,
-        onClick: (selected) => setBoardFilter(selected.id === state.activeBoardId ? null : selected.id),
+        active: state.activeFilterId === filterItem.id,
+        onClick: (selected) => setFilter(selected.id === state.activeFilterId ? null : selected.id),
       }),
     );
   });
@@ -187,12 +225,12 @@ function renderLegend() {
 
 function createNavButton(diagram, isOverview) {
   const button = document.createElement('button');
-  const board = primaryBoard(diagram);
+  const filterItem = primaryFilter(diagram);
   button.type = 'button';
   button.className = `nav-item${isOverview ? ' nav-item--overview' : ''}`;
   button.dataset.diagramId = diagram.id;
   button.title = isOverview ? '전체 구조' : diagram.fileName;
-  button.style.setProperty('--item-color', board ? board.color : 'oklch(0.7 0.05 210)');
+  button.style.setProperty('--item-color', filterItem ? filterItem.color : 'oklch(0.7 0.05 210)');
   button.setAttribute('aria-current', diagram.id === state.activeId ? 'page' : 'false');
 
   const rail = document.createElement('span');
@@ -211,20 +249,20 @@ function createNavButton(diagram, isOverview) {
   if (!isOverview) {
     const badges = document.createElement('span');
     badges.className = 'nav-item__badges';
-    const boards = getBoardsForDiagram(diagram);
-    if (boards.some((item) => item.webhook)) {
-      const webhookBadge = document.createElement('span');
-      webhookBadge.className = 'mini-badge mini-badge--webhook';
-      webhookBadge.textContent = 'MONDAY 변경';
-      badges.append(webhookBadge);
+    const filterItems = getFiltersForDiagram(diagram);
+    if (filterItems.some((item) => isFeatured(item))) {
+      const featuredBadge = document.createElement('span');
+      featuredBadge.className = 'mini-badge mini-badge--featured';
+      featuredBadge.textContent = UI.featuredBadge;
+      badges.append(featuredBadge);
     }
-    boards.slice(0, 3).forEach((item) => {
+    filterItems.slice(0, 3).forEach((item) => {
       const badge = document.createElement('span');
       badge.className = 'mini-badge';
       badge.style.setProperty('--badge-color', item.color);
       const dot = document.createElement('span');
       dot.className = 'mini-badge__dot';
-      badge.append(dot, document.createTextNode(item.name.replace(' 패키지 현황', '').replace(' 패키지', '')));
+      badge.append(dot, document.createTextNode(item.shortName || item.name));
       badges.append(badge);
     });
     if (badges.childNodes.length > 0) {
@@ -240,30 +278,30 @@ function createNavButton(diagram, isOverview) {
   return button;
 }
 
-function createNavEmptyState(board) {
+function createNavEmptyState(filterItem) {
   const empty = document.createElement('div');
   empty.className = 'nav-empty';
   empty.setAttribute('role', 'status');
 
   const title = document.createElement('strong');
-  title.textContent = board ? `${board.name} 연결 파일 없음` : '표시할 파일이 없습니다';
+  title.textContent = filterItem ? `${filterItem.name} 연결 파일 없음` : '표시할 파일이 없습니다';
 
   const body = document.createElement('p');
-  body.textContent = '필터를 해제하거나 다른 보드를 선택하세요.';
+  body.textContent = `필터를 해제하거나 다른 ${UI.filterLabel}를 선택하세요.`;
 
   const action = document.createElement('button');
   action.type = 'button';
   action.className = 'text-button text-button--on-dark';
   action.textContent = '필터 해제';
-  action.addEventListener('click', () => setBoardFilter(null));
+  action.addEventListener('click', () => setFilter(null));
 
   empty.append(title, body, action);
   return empty;
 }
 
 function updateNavToolbar(matchCount) {
-  const filtering = Boolean(state.activeBoardId);
-  const board = state.activeBoardId ? BOARDS[state.activeBoardId] : null;
+  const filtering = Boolean(state.activeFilterId);
+  const filterItem = state.activeFilterId ? FILTER_ITEMS[state.activeFilterId] : null;
 
   if (elements.sidebar) {
     elements.sidebar.classList.toggle('is-filtering', filtering);
@@ -271,27 +309,27 @@ function updateNavToolbar(matchCount) {
   if (elements.navToolbar) {
     elements.navToolbar.hidden = !filtering;
   }
-  if (!filtering || !board) {
+  if (!filtering || !filterItem) {
     return;
   }
 
   if (elements.navFilterLabel) {
-    elements.navFilterLabel.textContent = board.name;
+    elements.navFilterLabel.textContent = filterItem.name;
   }
   if (elements.navFilterCount) {
     elements.navFilterCount.textContent = `${matchCount}개 파일`;
   }
   if (elements.navToolbar) {
-    elements.navToolbar.style.setProperty('--filter-color', board.color);
+    elements.navToolbar.style.setProperty('--filter-color', filterItem.color);
   }
 }
 
 function renderNavigation() {
   const overview = getOverview();
-  const filtering = Boolean(state.activeBoardId);
+  const filtering = Boolean(state.activeFilterId);
   const details = state.diagrams
     .filter((diagram) => !isOverviewDiagram(diagram))
-    .filter((diagram) => diagramMatchesBoard(diagram, state.activeBoardId));
+    .filter((diagram) => diagramMatchesFilter(diagram, state.activeFilterId));
   const fragment = document.createDocumentFragment();
 
   updateNavToolbar(details.length);
@@ -302,7 +340,7 @@ function renderNavigation() {
   }
 
   if (filtering && details.length === 0) {
-    fragment.append(createNavEmptyState(BOARDS[state.activeBoardId]));
+    fragment.append(createNavEmptyState(FILTER_ITEMS[state.activeFilterId]));
     elements.diagramNavList.replaceChildren(fragment);
     return;
   }
@@ -362,10 +400,10 @@ function updateNavigationState() {
 
 function ensureActiveMatchesFilter() {
   const active = state.diagrams.find((diagram) => diagram.id === state.activeId);
-  if (!state.activeBoardId) {
+  if (!state.activeFilterId) {
     return;
   }
-  if (active && diagramMatchesBoard(active, state.activeBoardId)) {
+  if (active && diagramMatchesFilter(active, state.activeFilterId)) {
     return;
   }
   const first = getFirstFilteredDetail();
@@ -379,8 +417,8 @@ function ensureActiveMatchesFilter() {
   }
 }
 
-function setBoardFilter(boardId) {
-  state.activeBoardId = boardId;
+function setFilter(filterId) {
+  state.activeFilterId = filterId;
   renderLegend();
   renderNavigation();
   updateNavigationState();
@@ -388,7 +426,7 @@ function setBoardFilter(boardId) {
 
   const active = state.diagrams.find((diagram) => diagram.id === state.activeId);
   if (active) {
-    renderRelatedBoards(active);
+    renderRelatedFilters(active);
   }
 
   // 필터 적용 직후 파일 목록이 보이도록 네비 스크롤을 맨 위로.
@@ -424,32 +462,30 @@ function getInteractiveNodeMap(code) {
   return nodeMap;
 }
 
+function openDetailByFileName(fileName) {
+  const detail = getDetailByFileName(cleanFileName(fileName));
+  if (detail) {
+    showDiagram(detail.id, { reveal: true });
+  }
+}
+
 function matchesRenderedNodeId(renderedId, nodeId) {
   const marker = `flowchart-${nodeId}-`;
   return renderedId.startsWith(marker) || renderedId.includes(`-${marker}`);
 }
 
-function buildInteractiveOverviewCode(code) {
-  const clickLines = [];
-  const nodeMap = getInteractiveNodeMap(code);
-  nodeMap.forEach((fileName, nodeId) => {
-    clickLines.push(`click ${nodeId} call onNodeClick(${JSON.stringify(fileName)})`);
-  });
-  return clickLines.length > 0 ? `${code.trimEnd()}\n\n${clickLines.join('\n')}` : code;
-}
-
-function resolveBoardFromLabel(label) {
+function resolveFilterFromLabel(label) {
   const normalized = String(label || '').toLowerCase();
-  for (const alias of BOARD_ALIASES) {
+  for (const alias of FILTER_ALIASES) {
     if (alias.keys.some((key) => normalized.includes(key))) {
-      return BOARDS[alias.board];
+      return FILTER_ITEMS[alias.item];
     }
   }
 
   const fileName = cleanFileName(label);
-  const boards = FILE_BOARD_MAP[fileName];
-  if (boards && boards.length > 0) {
-    return BOARDS[boards[0]];
+  const filterItems = FILE_FILTER_MAP[fileName];
+  if (filterItems && filterItems.length > 0) {
+    return FILTER_ITEMS[filterItems[0]];
   }
   return null;
 }
@@ -464,11 +500,12 @@ function bindAccessibleNodes(nodeMap) {
     node.classList.add('is-drilldown');
     node.setAttribute('tabindex', '0');
     node.setAttribute('role', 'button');
-      node.setAttribute('aria-label', `${fileName} 상세 흐름 열기`);
+    node.setAttribute('aria-label', `${fileName} 상세 흐름 열기`);
+    node.addEventListener('click', () => openDetailByFileName(fileName));
     node.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        window.onNodeClick(fileName);
+        openDetailByFileName(fileName);
       }
     });
   });
@@ -483,21 +520,21 @@ function colorizeRenderedNodes(code) {
     if (!node) {
       return;
     }
-    if (nodeId === 'WHSRC' || /^웹훅 발생/.test(label)) {
-      node.classList.add('is-webhook-source');
+    if (nodeId === 'WHSRC' || label.startsWith(UI.featuredAnnotation)) {
+      node.classList.add('is-featured-source');
       return;
     }
-    const board = resolveBoardFromLabel(label);
-    if (!board) {
+    const filterItem = resolveFilterFromLabel(label);
+    if (!filterItem) {
       return;
     }
-    node.classList.add('is-board-colored');
-    if (board.webhook) {
-      node.classList.add('is-webhook-board');
+    node.classList.add('is-filter-colored');
+    if (isFeatured(filterItem)) {
+      node.classList.add('is-featured-filter');
     }
-    node.style.setProperty('--node-fill', board.soft);
-    node.style.setProperty('--node-stroke', board.color);
-    if (state.activeBoardId && board.id !== state.activeBoardId) {
+    node.style.setProperty('--node-fill', filterItem.soft);
+    node.style.setProperty('--node-stroke', filterItem.color);
+    if (state.activeFilterId && filterItem.id !== state.activeFilterId) {
       node.style.opacity = '0.42';
     } else {
       node.style.opacity = '1';
@@ -568,8 +605,8 @@ function getFlowAnimationSteps(paths, code) {
 
 /** Archify trace: 원본 관계선이 실제 연결 단계에 맞춰 계속 흐른다. */
 function addFlowAnimation(diagram, code) {
-  const board = primaryBoard(diagram);
-  elements.diagramMount.style.setProperty('--flow-color', board ? board.color : 'var(--accent)');
+  const filterItem = primaryFilter(diagram);
+  elements.diagramMount.style.setProperty('--flow-color', filterItem ? filterItem.color : 'var(--accent)');
 
   const paths = [...elements.diagramMount.querySelectorAll('.edgePaths path.flowchart-link')];
   const { edges, nodeSteps } = getFlowAnimationSteps(paths, code);
@@ -597,24 +634,24 @@ function revealDiagramPanel({ focus = false } = {}) {
   }
 }
 
-function getWebhookSourceBoards(diagram) {
+function getFeaturedSourceFilters(diagram) {
   if (!diagram || isOverviewDiagram(diagram)) {
     return [];
   }
-  return getBoardsForDiagram(diagram).filter((board) => board.webhook);
+  return getFiltersForDiagram(diagram).filter((filterItem) => isFeatured(filterItem));
 }
 
-/** 상세 차트 상단에 웹훅 알림과 발생 보드명을 mermaid 노드로 주입한다. */
-function withWebhookSourceAnnotation(code, diagram) {
-  const webhookBoards = getWebhookSourceBoards(diagram);
-  if (webhookBoards.length === 0) {
+/** 상세 차트 상단에 설정된 주요 진입점과 분류명을 Mermaid 노드로 주입한다. */
+function withFeaturedSourceAnnotation(code, diagram) {
+  const featuredFilters = getFeaturedSourceFilters(diagram);
+  if (featuredFilters.length === 0) {
     return code;
   }
 
-  const names = webhookBoards.map((board) => board.name).join(' · ');
+  const names = featuredFilters.map((filterItem) => filterItem.name).join(' · ');
   const noteLabel = `- ${names}`;
   const annotation = [
-    '  WHSRC(["먼데이 변경 알림"])',
+    `  WHSRC(["${UI.featuredAnnotation}"])`,
     `  WHSRC_NOTE["${noteLabel}"]`,
     '  classDef whsrc fill:#FBFBFC,stroke:#1D7BD6,color:#0D0D0F,stroke-width:1.6px',
     '  classDef whsrcNote fill:transparent,stroke:transparent,color:#6B6B70,stroke-width:0px',
@@ -623,7 +660,7 @@ function withWebhookSourceAnnotation(code, diagram) {
   ].join('\n');
 
   // 이미 주입된 코드면 중복 추가하지 않는다.
-  if (/\bWHSRC\b/.test(code) || code.includes('먼데이 변경 알림')) {
+  if (/\bWHSRC\b/.test(code) || code.includes(UI.featuredAnnotation)) {
     return code;
   }
 
@@ -651,52 +688,52 @@ function showRenderError(error) {
   elements.diagramMount.replaceChildren();
 }
 
-function renderRelatedBoards(diagram) {
-  if (!HAS_BOARDS) {
+function renderRelatedFilters(diagram) {
+  if (!HAS_FILTER_ITEMS) {
     elements.overviewLegend.hidden = true;
-    elements.relatedBoardsSection.hidden = true;
+    elements.relatedFiltersSection.hidden = true;
     return;
   }
 
   const isOverview = diagram === getOverview();
   elements.overviewLegend.hidden = !isOverview;
-  elements.relatedBoardsSection.hidden = isOverview;
+  elements.relatedFiltersSection.hidden = isOverview;
 
   if (isOverview) {
     renderLegend();
     return;
   }
 
-  const boards = getBoardsForDiagram(diagram);
+  const filterItems = getFiltersForDiagram(diagram);
   const fragment = document.createDocumentFragment();
-  if (boards.length === 0) {
+  if (filterItems.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'diagram-path';
-    empty.textContent = '이 파일은 특정 Monday 보드보다 공통 유틸/시트 처리에 가깝습니다.';
+    empty.textContent = `이 파일은 특정 ${UI.filterLabel}에 연결되지 않았습니다.`;
     fragment.append(empty);
   } else {
-    boards.forEach((board) => {
+    filterItems.forEach((filterItem) => {
       fragment.append(
-        createChip(board, {
+        createChip(filterItem, {
           compact: true,
-          active: state.activeBoardId === board.id,
-          onClick: (selected) => setBoardFilter(selected.id === state.activeBoardId ? null : selected.id),
+          active: state.activeFilterId === filterItem.id,
+          onClick: (selected) => setFilter(selected.id === state.activeFilterId ? null : selected.id),
         }),
       );
     });
   }
-  elements.relatedBoardList.replaceChildren(fragment);
+  elements.relatedFilterList.replaceChildren(fragment);
 }
 
-function setTitleBlock({ file, nodes, board, status }) {
+function setTitleBlock({ file, nodes, filterItem, status }) {
   if (elements.titleBlockFile && file !== undefined) {
     elements.titleBlockFile.textContent = file;
   }
   if (elements.titleBlockNodes && nodes !== undefined) {
     elements.titleBlockNodes.textContent = nodes;
   }
-  if (elements.titleBlockBoard && board !== undefined) {
-    elements.titleBlockBoard.textContent = board;
+  if (elements.titleBlockFilter && filterItem !== undefined) {
+    elements.titleBlockFilter.textContent = filterItem;
   }
   if (elements.titleBlockStatus && status !== undefined) {
     elements.titleBlockStatus.textContent = status;
@@ -712,8 +749,8 @@ async function renderDiagram(diagram) {
   const interactiveNodes = isOverview ? getInteractiveNodeMap(diagram.mermaidCode) : new Map();
   const annotatedCode = isOverview
     ? diagram.mermaidCode
-    : withWebhookSourceAnnotation(diagram.mermaidCode, diagram);
-  const source = isOverview ? buildInteractiveOverviewCode(annotatedCode) : annotatedCode;
+    : withFeaturedSourceAnnotation(diagram.mermaidCode, diagram);
+  const source = annotatedCode;
   const renderSequence = ++state.renderSequence;
   const renderId = `mermaid-diagram-${renderSequence}`;
 
@@ -731,18 +768,20 @@ async function renderDiagram(diagram) {
     colorizeRenderedNodes(annotatedCode);
     addFlowAnimation(diagram, annotatedCode);
     elements.diagramStatus.textContent = '렌더링 완료';
-    const webhookBoards = getWebhookSourceBoards(diagram);
+    const featuredFilters = getFeaturedSourceFilters(diagram);
     elements.diagramHint.textContent = isOverview
-      ? '업무 노드를 클릭하면 실행 조건과 분기 기준을 볼 수 있습니다'
-        : webhookBoards.length > 0
-        ? `먼데이 변경 알림 - ${webhookBoards.map((board) => board.name).join(' · ')}`
-        : '이 흐름의 보드 칩으로 필터하거나 사이드바에서 다른 파일로 이동';
+      ? '구성 요소 노드를 클릭하면 실행 조건과 분기 기준을 볼 수 있습니다'
+        : featuredFilters.length > 0
+        ? `${UI.featuredBadge} - ${featuredFilters.map((filterItem) => filterItem.name).join(' · ')}`
+        : HAS_FILTER_ITEMS
+          ? `이 흐름의 ${UI.filterLabel} 칩으로 필터하거나 사이드바에서 다른 파일로 이동`
+          : '사이드바에서 다른 파일로 이동';
 
-    const board = primaryBoard(diagram);
+    const filterItem = primaryFilter(diagram);
     const nodeCount = elements.diagramMount.querySelectorAll('.node').length;
     setTitleBlock({
       nodes: nodeCount,
-      board: board ? board.name : '—',
+      filterItem: filterItem ? filterItem.name : '—',
       status: 'RENDERED',
     });
   } catch (error) {
@@ -765,12 +804,12 @@ async function showDiagram(diagramId, { reveal = false, focusPanel = false } = {
   const isOverview = diagram === getOverview();
   elements.backButton.hidden = isOverview;
   elements.diagramKicker.textContent = isOverview ? '전체 구조' : getGroupName(diagram);
-  elements.diagramTitle.textContent = isOverview ? 'Monday 업무 자동화 전체 흐름' : diagram.displayName;
+  elements.diagramTitle.textContent = isOverview ? UI.overviewTitle : diagram.displayName;
   elements.diagramPath.textContent = isOverview
-    ? '웹훅 보드 → 알림/싱크/정량화/시트 동기화 연결'
+    ? UI.overviewDescription
     : getGroupName(diagram);
 
-  renderRelatedBoards(diagram);
+  renderRelatedFilters(diagram);
   setTitleBlock({ file: isOverview ? '전체 구조' : diagram.displayName });
   await renderDiagram(diagram);
   if (reveal && diagram.id === state.activeId) {
@@ -800,35 +839,29 @@ async function loadDiagrams() {
     }
 
     renderNavigation();
-    setDataStatus(`${state.diagrams.length}개 다이어그램 · 보드 ${Object.keys(BOARDS).length}개`);
+    const filterCount = Object.keys(FILTER_ITEMS).length;
+    setDataStatus(`${state.diagrams.length}개 다이어그램${filterCount ? ` · ${UI.filterLabel} ${filterCount}개` : ''}`);
     await showDiagram(getOverview().id);
   } catch (error) {
     showLoadError(error);
   }
 }
 
-window.onNodeClick = (fileName) => {
-  const detail = getDetailByFileName(cleanFileName(fileName));
-  if (detail) {
-    showDiagram(detail.id, { reveal: true });
-  }
-};
-
 elements.backButton.addEventListener('click', () => {
   // 필터 중 전체 구조로 돌아갈 때는 필터도 함께 풀어 목록이 다시 열리게 한다.
-  if (state.activeBoardId) {
-    setBoardFilter(null);
+  if (state.activeFilterId) {
+    setFilter(null);
   }
   showDiagram(getOverview().id, { reveal: true });
 });
 if (elements.navClearFilter) {
-  elements.navClearFilter.addEventListener('click', () => setBoardFilter(null));
+  elements.navClearFilter.addEventListener('click', () => setFilter(null));
 }
 
 // Mermaid themeVariables는 oklch/hex 파서가 제한적이라 sRGB hex만 사용한다.
 mermaid.initialize({
   startOnLoad: false,
-  securityLevel: 'loose',
+  securityLevel: 'strict',
   theme: 'base',
   flowchart: {
     curve: 'basis',
@@ -854,4 +887,5 @@ mermaid.initialize({
   },
 });
 
+applyUiConfig();
 loadDiagrams();

@@ -1,80 +1,132 @@
-# GS Flow Viewer
+# Project Flow Viewer
 
-Google Apps Script(GAS) 자동화 프로젝트의 파일별 흐름을 Mermaid 다이어그램으로 탐색하는 로컬 웹 뷰어입니다. `.gs` 파일만 있으면 됩니다 — Mermaid 마크다운이 없어도 [Codex](https://developers.openai.com/codex) 프롬프트로 그 자리에서 생성할 수 있습니다.
+프로젝트의 실행 조건·분기·결과를 Mermaid 다이어그램으로 탐색하는 로컬 웹 뷰어입니다. 언어, 프레임워크, AI 공급자를 제한하지 않습니다.
 
-## 빠른 시작 (Codex 사용자)
+이 저장소는 역할을 분리합니다.
 
-1. 이 레포를 GAS 프로젝트 옆(또는 안)에 클론합니다.
-2. `.gs` 파일들이 있는 디렉토리에서 Codex를 실행하고 `.codex/prompts/generate-diagrams.md` 프롬프트를 사용해 `diagrams.md`를 생성합니다.
-   ```bash
-   codex exec "$(cat gs-flow-viewer/.codex/prompts/generate-diagrams.md)"
-   ```
-   (Codex CLI에 프로젝트 프롬프트로 등록해 `/generate-diagrams`처럼 짧게 불러도 됩니다.)
-3. 뷰어를 실행합니다.
-   ```bash
-   cd gs-flow-viewer
-   node server.js
-   ```
-4. 브라우저에서 [http://localhost:4747](http://localhost:4747) 을 엽니다.
+- `prompts/generate-diagrams.md`: 어떤 AI에서도 사용할 수 있는 흐름도 생성 명세
+- `skills/project-flow-diagrams/SKILL.md`: 스킬을 지원하는 에이전트용 선택 진입점
+- `server.js`와 `public/`: 생성된 `diagrams.md`를 표시하는 AI 없는 로컬 뷰어
 
-Node.js 내장 모듈만 사용하므로 `npm install` 없이 바로 실행됩니다.
+## 빠른 시작
 
-## GAS 변경 자동 반영 hook
-
-상위 `monday-automation` 저장소는 `.githooks/pre-commit`을 사용합니다. 커밋할
-변경에 `.gs` 파일이 포함되면 Codex가 해당 파일의 흐름을 다시 읽고
-`Monday_GS_Mermaid_Diagrams.md`의 관련 Mermaid 섹션을 갱신한 뒤, 다이어그램 파일을
-같은 커밋에 자동으로 stage합니다.
-
-최초 한 번만 저장소에서 hook 경로를 설정합니다.
+### 이미 `diagrams.md`가 있는 경우
 
 ```bash
-git config core.hooksPath .githooks
+DIAGRAM_SOURCE=/path/to/project/diagrams.md node server.js
 ```
 
-의도적으로 자동 갱신을 건너뛸 때만 다음 환경 변수를 사용합니다.
+브라우저에서 [http://localhost:4747](http://localhost:4747)을 엽니다. Node.js 내장 모듈만 사용하므로 패키지 설치가 필요 없습니다.
+
+### 프로젝트 소스에서 흐름도를 생성하는 경우
+
+1. 사용할 AI가 프로젝트 소스를 읽을 수 있게 합니다.
+2. `prompts/generate-diagrams.md`를 지침으로 제공합니다.
+3. AI가 생성한 `diagrams.md`를 `DIAGRAM_SOURCE`로 지정합니다.
+4. 뷰어를 실행합니다.
+
+Codex·Claude처럼 `SKILL.md` 형식의 스킬을 지원하는 환경에서는 `skills/project-flow-diagrams`를 설치하거나 직접 지정할 수 있습니다. 스킬을 지원하지 않는 환경에서는 공통 프롬프트만 사용하면 됩니다.
+
+AI 서비스에 소스를 제공할 때는 조직의 코드·개인정보·기밀정보 반출 정책을 먼저 확인하세요. 뷰어 자체는 AI나 외부 API를 호출하지 않습니다.
+
+## 지원하는 프로젝트
+
+생성 명세는 확장자를 제한하지 않습니다. 웹 앱, API 서버, CLI, 배치, 자동화 스크립트, 데이터 파이프라인 등 소스에서 실행 흐름을 확인할 수 있는 프로젝트를 대상으로 합니다.
+
+뷰어는 소스 코드를 직접 분석하지 않습니다. 아래 형식의 Mermaid Markdown만 읽습니다.
+
+````markdown
+## 전체 구조
+
+```mermaid
+flowchart TD
+  A[요청 수신] --> B[주문 처리]
+```
+
+## src/orders/create-order.ts | 주문 생성
+
+```mermaid
+flowchart TD
+  A[주문 요청] --> B{입력이 유효한가?}
+  B -- 아니오 --> C[오류 응답]
+  B -- 예 --> D[주문 저장]
+```
+````
+
+- 첫 Mermaid 섹션은 `## 전체 구조`
+- 상세 제목은 `## <상대 경로> | <표시명>`
+- 상대 경로의 바로 위 폴더명이 사이드바 그룹으로 자동 표시
+- 전체 구조의 파일명 또는 표시명 노드를 클릭하면 상세 흐름으로 이동
+
+## 프로젝트별 설정
+
+기본 설정은 `public/viewer.config.js`이며 특정 프로젝트 정보가 없습니다. 개인 또는 조직 설정은 별도 JavaScript 파일로 만들고 환경 변수로 지정합니다.
 
 ```bash
-GS_FLOW_VIEWER_HOOK_SKIP=1 git commit
+VIEWER_CONFIG=/path/to/viewer.config.js \
+DIAGRAM_SOURCE=/path/to/diagrams.md \
+node server.js
 ```
 
-## 무엇을 보여주나
+저장소 루트에 `viewer.config.local.js`가 있으면 자동으로 사용하며 이 파일은 Git에서 제외됩니다. 설정 선택 순서는 다음과 같습니다.
 
-- 좌측 사이드바에서 `전체 구조` 또는 파일별 상세 흐름을 선택합니다.
-- 데스크톱에서는 사이드바 목록만 스크롤되므로 아래쪽 파일을 골라도 차트가 화면에 유지됩니다.
-- 작은 화면에서는 파일을 선택하면 해당 차트로 이동합니다.
-- 전체 구조에서 파일명 노드를 클릭하면 해당 파일 상세로 드릴다운됩니다.
-- 상세 화면에서는 `← 전체 구조로` 버튼으로 돌아갑니다.
-- 파일을 선택하면 관계선의 색·밝기는 고정된 채 Archify 방식의 dash가 단계별 위상을 유지하며 계속 흐릅니다. 글로우·페이드 효과는 사용하지 않으며, 운영체제의 모션 줄이기 설정에서는 애니메이션 없이 바로 표시됩니다.
-- 실시간 실행 로그·성공/실패 상태는 표시하지 않습니다(문서 뷰어입니다).
+1. `VIEWER_CONFIG` 환경 변수
+2. 저장소 루트의 `viewer.config.local.js`
+3. `public/viewer.config.js` 기본값
 
-## 데이터 소스 (`diagrams.md`)
+다이어그램 입력도 같은 원칙으로 분리됩니다.
 
-`server.js`는 뷰어 루트의 `diagrams.md`를 읽어 `## 제목` + ` ```mermaid ` 코드블록을 파싱합니다. 요청마다 새로 읽으므로(서버 캐싱 없음), `diagrams.md`를 고치고 새로고침하면 바로 반영됩니다.
+1. `DIAGRAM_SOURCE` 환경 변수
+2. 저장소 루트의 `diagrams.local.md`
+3. 저장소의 범용 예제 `diagrams.md`
 
-다른 경로의 마크다운을 쓰려면 환경 변수로 지정합니다.
+설정 예시:
 
-```bash
-DIAGRAM_SOURCE=/path/to/your-diagrams.md node server.js
+```javascript
+window.FLOW_VIEWER_CONFIG = {
+  ui: {
+    eyebrow: 'ORDER PLATFORM',
+    title: '주문 플랫폼 흐름',
+    overviewTitle: '주문 플랫폼 전체 흐름',
+    overviewDescription: '요청 → 결제 → 배송',
+    filterLabel: '서비스',
+  },
+  preferredGroups: ['api', 'workers'],
+  filters: {
+    items: {
+      orders: {
+        id: 'orders',
+        name: '주문',
+        color: '#2563eb',
+        soft: '#dbeafe',
+        featured: true,
+        note: '외부 요청 진입점',
+      },
+    },
+    aliases: [{ keys: ['order', '주문'], item: 'orders' }],
+    fileMap: { 'create-order.ts': ['orders'] },
+  },
+};
 ```
 
-포맷 규칙과 자동 생성 방법은 `.codex/prompts/generate-diagrams.md`를 참고하세요. 직접 쓸 경우 핵심만:
+필터 설정을 생략하면 관련 UI가 자동으로 숨겨지고 순수 Mermaid 뷰어로 작동합니다. `preferredGroups`에 없는 폴더도 다이어그램 경로에서 자동 발견되어 표시됩니다.
 
-- 첫 섹션은 `## 전체 구조` (뷰어가 개요로 인식)
-- 이후 섹션은 파일당 하나, `## <경로>/<파일명.gs> | <비개발자용 업무명>`
-- 파일명은 사이드바에서 원본 스크립트를 찾는 용도로 표시하고, 전체 구조·상세 제목에는 업무명을 표시
-- 전체 구조 노드 라벨이 상세 섹션의 업무명과 정확히 일치해야 클릭 드릴다운이 동작
-
-## 보드/서비스 색상 필터 (선택)
-
-`public/boards.config.js`를 채우면 사이드바에 보드/서비스별 필터 칩과 다이어그램 색 구분이 활성화됩니다. 비워두면(기본값) 관련 UI가 자동으로 숨겨지고 순수 Mermaid 뷰어로 동작합니다. 형식은 파일 안 주석을 참고하세요.
+Mermaid는 `strict` 보안 수준으로 렌더링합니다. 전체 구조의 드릴다운 이벤트는 Mermaid 문서 안의 실행 지시가 아니라 뷰어 코드가 직접 연결합니다.
 
 ## 파일 구성
 
-- `server.js`: 정적 파일 서버와 Markdown 파서
-- `public/index.html`: 화면 골격과 Mermaid 로드(`public/vendor/mermaid.min.js`, 로컬 번들)
-- `public/app.js`: 데이터 로드, 사이드바, Mermaid 렌더링, 드릴다운
-- `public/boards.config.js`: 보드/서비스 색상 필터 설정(선택)
-- `public/style.css`: 반응형 사이드바·메인 레이아웃
-- `.codex/prompts/generate-diagrams.md`: `.gs` 파일 → `diagrams.md` 생성 프롬프트
-- `DESIGN.md`: 이 도구의 UI 토큰과 컴포넌트 계약
+- `prompts/generate-diagrams.md`: AI 중립 생성 명세의 정본
+- `.codex/prompts/generate-diagrams.md`: Codex 프로젝트 프롬프트 호환 진입점
+- `skills/project-flow-diagrams/SKILL.md`: 선택적 에이전트 스킬
+- `server.js`: 로컬 정적 파일 서버와 Markdown 파서
+- `public/index.html`: 화면 구조와 로컬 Mermaid 번들 로드
+- `public/app.js`: 탐색, 렌더링, 드릴다운, 선택 필터
+- `public/viewer.config.js`: 개인정보나 조직 정보가 없는 기본 설정
+- `DESIGN.md`: UI 토큰과 컴포넌트 계약
+
+## 개발 검증
+
+```bash
+npm test
+npm run check
+```

@@ -4,9 +4,19 @@ const path = require('node:path');
 
 const PORT = Number(process.env.PORT) || 4747;
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const LOCAL_DIAGRAM_PATH = path.join(__dirname, 'diagrams.local.md');
 const SOURCE_MARKDOWN_PATH = process.env.DIAGRAM_SOURCE
   ? path.resolve(process.env.DIAGRAM_SOURCE)
-  : path.join(__dirname, 'diagrams.md');
+  : fs.existsSync(LOCAL_DIAGRAM_PATH)
+    ? LOCAL_DIAGRAM_PATH
+    : path.join(__dirname, 'diagrams.md');
+const DEFAULT_CONFIG_PATH = path.join(PUBLIC_DIR, 'viewer.config.js');
+const LOCAL_CONFIG_PATH = path.join(__dirname, 'viewer.config.local.js');
+const VIEWER_CONFIG_PATH = process.env.VIEWER_CONFIG
+  ? path.resolve(process.env.VIEWER_CONFIG)
+  : fs.existsSync(LOCAL_CONFIG_PATH)
+    ? LOCAL_CONFIG_PATH
+    : DEFAULT_CONFIG_PATH;
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -54,6 +64,10 @@ function readDiagrams() {
   return parseDiagrams(markdown);
 }
 
+function readViewerConfig() {
+  return fs.readFileSync(VIEWER_CONFIG_PATH, 'utf8');
+}
+
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     'Cache-Control': 'no-store',
@@ -88,6 +102,20 @@ function createServer() {
         sendJson(response, 200, readDiagrams());
       } catch (error) {
         sendJson(response, 500, { error: '다이어그램 원본을 읽거나 파싱하지 못했습니다.' });
+      }
+      return;
+    }
+
+    if (requestUrl.pathname === '/viewer.config.js') {
+      try {
+        response.writeHead(200, {
+          'Cache-Control': 'no-store',
+          'Content-Type': 'text/javascript; charset=utf-8',
+        });
+        response.end(readViewerConfig());
+      } catch (error) {
+        response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        response.end('Viewer configuration could not be read.');
       }
       return;
     }
@@ -128,14 +156,16 @@ function createServer() {
 
 if (require.main === module) {
   createServer().listen(PORT, '127.0.0.1', () => {
-    console.log(`Monday GAS flow viewer listening at http://localhost:${PORT}`);
+    console.log(`Project Flow Viewer listening at http://localhost:${PORT}`);
   });
 }
 
 module.exports = {
   PORT,
   SOURCE_MARKDOWN_PATH,
+  VIEWER_CONFIG_PATH,
   createServer,
   extractFileName,
   parseDiagrams,
+  readViewerConfig,
 };

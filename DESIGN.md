@@ -1,4 +1,4 @@
-# Monday GAS Flow Viewer Design System
+# Project Flow Viewer Design System
 
 ## 0. Research Log (greenfield only)
 
@@ -13,22 +13,18 @@
 
 시그니처는 두 층입니다.
 1. 셸 액센트는 X Blue 계열 하나(`--accent` `#1d7bd6`)로 절제
-2. **보드 정체성**은 full-palette 칩/노드 색으로 구분 (사이드바는 보드 필터 단일 진입) — 셸 팔레트 교체와 무관하게 유지
+2. **프로젝트별 분류**는 선택적 full-palette 칩/노드 색으로 구분 — 셸 팔레트 교체와 무관하게 유지
 
-## 1.1 Board identity colors (app.js `BOARDS`)
+## 1.1 Optional filter identity colors
 
-| Board | Role | Notes |
+| Setting | Role | Notes |
 |------|------|------|
-| Mobile 패키지 현황 | webhook | 도안상태 알림 |
-| CP 패키지 현황 | webhook | 카드싱크·크로스체크 |
-| CP Package | webhook | 제작요청·카드싱크 |
-| 1파트_SKU master | webhook | 진행 구분 |
-| WO / 생활용품 | webhook | 2파트 도안완료 |
-| 폴더블 장탈착 보드 | webhook | BOM/영상 |
-| 업무정량화 완료 보드 | webhook | 설문 배치 |
-| 개발현황·보안·패키지 마스터 | linked | 웹훅 아님, 연동 보드 |
+| `filters.items` | 분류별 색·표시명 | 없으면 필터 UI 숨김 |
+| `filters.aliases` | 다이어그램 노드와 분류 연결 | 선택 사항 |
+| `filters.fileMap` | 파일과 분류 연결 | 선택 사항 |
+| `featured` | 주요 실행 진입점 강조 | 프로젝트별 의미 설정 |
 
-미사용 GS 그룹과 C11 패키지·지원/테스트 보드는 뷰어에서 표시하지 않습니다.
+사이드바 그룹은 상세 섹션의 상대 경로에서 자동 발견한다. `preferredGroups`는 표시 순서만 조정하며 허용 목록으로 사용하지 않는다.
 
 ## 2. Color
 
@@ -52,9 +48,9 @@
 ### Rules
 
 - 배경색을 거의 바꾸지 않는다 — 사이드바와 본문은 동일한 `--bg-primary`이고, 오직 `border-right` 한 줄로만 구분한다.
-- 섹션 구분은 배경 대비가 아니라 `border-top` 라인으로 한다. 다이어그램 패널·관련 보드 섹션 모두 카드 박스 대신 라인 구획을 쓴다.
+- 섹션 구분은 배경 대비가 아니라 `border-top` 라인으로 한다. 다이어그램 패널·관련 분류 섹션 모두 카드 박스 대신 라인 구획을 쓴다.
 - 텍스트 계층은 투명도 3단(100% / 62% / 40%)으로만 표현한다.
-- 보드 정체성 팔레트(각 보드 고유 색)는 셸 액센트와 별개로 full-palette 유지.
+- 선택 분류 팔레트는 셸 액센트와 별개로 full-palette 유지.
 - pill(`--radius-pill`, 완전 라운드)이 버튼·칩의 기본형이다.
 
 ## 3. Typography
@@ -99,7 +95,7 @@
 
 - **구조**: `aside > header + nav > button`. 배경은 본문과 동일, `border-right` 1px로만 구분.
 - **스크롤 소유권**: 데스크톱에서는 사이드바가 `100dvh`에 고정되고 파일 목록(`.diagram-nav`)만 세로 스크롤한다. 960px 이하에서는 문서 흐름으로 복귀하며 파일 선택 후 차트 시작점으로 이동한다.
-- **파일 인덱스 도트**: `nav-item__rail`을 6px 원형 도트로, 보드 색상을 그대로 표시.
+- **파일 인덱스 도트**: `nav-item__rail`을 6px 원형 도트로, 설정된 분류 색상을 표시.
 - **모션**: 배경색 전환만(`200ms cubic-bezier(.23,1,.32,1)`), `prefers-reduced-motion` 존중.
 
 ### Diagram canvas
@@ -120,6 +116,7 @@
 - `prefers-reduced-motion: reduce`에서 전환 비활성화
 - `prefers-reduced-motion: reduce`에서는 전류 레이어도 숨기고 정적인 원본 관계선만 표시한다.
 - Mermaid 노드 클릭은 선택적 드릴다운, 사이드바 버튼이 주 내비게이션
+- Mermaid는 `securityLevel: strict`로 렌더링하고, 드릴다운 이벤트는 렌더 후 뷰어 코드가 직접 연결한다.
 
 ## 7. Depth & Surface
 
@@ -140,6 +137,6 @@
 
 | Item | Location | Why accepted | Owner / Exit |
 |------|------|------|------|
-| Mermaid CDN availability is external | `public/index.html` | 사용자 요구사항이며 localhost 도구에 npm install 단계가 없음 | 오프라인 번들 요청 시에만 교체 |
+| Mermaid 번들 갱신은 수동 | `public/vendor/mermaid.min.js` | 런타임 외부 요청을 없애기 위해 로컬 고정 | 보안·호환성 검토 후 새 번들로 교체 |
 | Mermaid themeVariables는 hex만 허용 | `public/app.js` | Mermaid의 rgba/oklch 파서 제한 | Mermaid가 지원하면 CSS 토큰과 통일 |
 | Inter 폰트 미번들 | `public/style.css` `--font` | 오프라인 로컬 도구, 웹폰트 CDN 로드 금지 방침 | 시스템에 Inter 설치 시 자동 적용, 없으면 시스템 산세리프로 조용히 대체 |

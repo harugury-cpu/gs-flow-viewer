@@ -102,7 +102,7 @@ button:focus-visible,
   font-size: 17px;
 }
 
-.sidebar.is-filtering .board-filter {
+.sidebar.is-filtering .filter-panel {
   padding-bottom: 8px;
 }
 
@@ -133,7 +133,7 @@ button:focus-visible,
   line-height: 1.55;
 }
 
-.board-filter {
+.filter-panel {
   padding: 0 20px 20px;
 }
 
@@ -149,7 +149,7 @@ button:focus-visible,
 }
 
 .panel-head h2,
-.related-boards__title {
+.related-filters__title {
   margin: 0;
   font-size: 12px;
   font-weight: 500;
@@ -188,7 +188,7 @@ button:focus-visible,
   color: var(--accent);
 }
 
-.related-boards__title {
+.related-filters__title {
   margin-bottom: 16px;
 }
 
@@ -271,7 +271,7 @@ button:focus-visible,
   font-weight: 600;
 }
 
-.chip__webhook-badge {
+.chip__featured-badge {
   flex: 0 0 auto;
   padding: 2px 8px;
   border-radius: var(--radius-pill);
@@ -282,7 +282,7 @@ button:focus-visible,
   letter-spacing: 0.02em;
 }
 
-.chip-list--lg .chip__webhook-badge {
+.chip-list--lg .chip__featured-badge {
   color: var(--accent);
   background: var(--accent-soft);
 }
@@ -294,7 +294,7 @@ button:focus-visible,
   line-height: 1.35;
 }
 
-/* 이 흐름의 보드: 흰 표면 + 얇은 보더, 내부 여유 */
+/* 이 흐름의 분류: 흰 표면 + 얇은 보더, 내부 여유 */
 .chip-list--lg .chip {
   border-color: var(--border);
   color: var(--fg-primary);
@@ -454,11 +454,11 @@ button:focus-visible,
   opacity: 0.55;
 }
 
-.sidebar.is-filtering .board-filter .chip-list--wrap .chip:not(.is-active) {
+.sidebar.is-filtering .filter-panel .chip-list--wrap .chip:not(.is-active) {
   display: none;
 }
 
-.sidebar.is-filtering .board-filter .chip.is-active {
+.sidebar.is-filtering .filter-panel .chip.is-active {
   width: 100%;
 }
 
@@ -519,7 +519,7 @@ button:focus-visible,
   letter-spacing: 0.02em;
 }
 
-.mini-badge--webhook {
+.mini-badge--featured {
   color: var(--accent);
   background: var(--accent-soft);
 }
@@ -631,7 +631,7 @@ button:focus-visible,
 }
 
 /* 섹션: 라인은 얇게, 라인 앞뒤 호흡을 키움 */
-.related-boards,
+.related-filters,
 .overview-legend {
   margin-top: 40px;
   padding-top: 32px;
@@ -750,27 +750,27 @@ button:focus-visible,
   outline-offset: 6px;
 }
 
-.diagram-mount .node.is-board-colored > rect,
-.diagram-mount .node.is-board-colored > polygon,
-.diagram-mount .node.is-board-colored > path,
-.diagram-mount .node.is-board-colored > circle {
+.diagram-mount .node.is-filter-colored > rect,
+.diagram-mount .node.is-filter-colored > polygon,
+.diagram-mount .node.is-filter-colored > path,
+.diagram-mount .node.is-filter-colored > circle {
   fill: var(--node-fill) !important;
   stroke: var(--node-stroke) !important;
   stroke-width: 1.4px !important;
 }
 
 /* 그림자 제거 — 보더+면만 */
-.diagram-mount .node.is-webhook-board > rect,
-.diagram-mount .node.is-webhook-board > polygon,
-.diagram-mount .node.is-webhook-board > path {
+.diagram-mount .node.is-featured-filter > rect,
+.diagram-mount .node.is-featured-filter > polygon,
+.diagram-mount .node.is-featured-filter > path {
   stroke-dasharray: 0;
   filter: none;
 }
 
-.diagram-mount .node.is-webhook-source > rect,
-.diagram-mount .node.is-webhook-source > polygon,
-.diagram-mount .node.is-webhook-source > path,
-.diagram-mount .node.is-webhook-source > circle {
+.diagram-mount .node.is-featured-source > rect,
+.diagram-mount .node.is-featured-source > polygon,
+.diagram-mount .node.is-featured-source > path,
+.diagram-mount .node.is-featured-source > circle {
   fill: var(--bg-primary) !important;
   stroke: var(--accent) !important;
   stroke-width: 1.5px !important;
@@ -862,7 +862,7 @@ button:focus-visible,
 @media (max-width: 720px) {
   .sidebar__brand,
   .main-header,
-  .related-boards,
+  .related-filters,
   .overview-legend {
     padding-left: 20px;
     padding-right: 20px;

@@ -1,2 +1,5 @@
 .omo/
 node_modules/
+_scratch/
+viewer.config.local.js
+diagrams.local.md
