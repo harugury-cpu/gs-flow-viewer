@@ -1,0 +1,23 @@
+{
+  "$comment": "디지몬 도구 창이 이 파일을 읽어 이 도구를 실행하고 상태를 확인한다. 실행 명령·실행 파일·포트·상태 확인 주소를 바꾸면 이 파일도 같은 커밋에서 고친다. 폴더를 옮길 때는 이 파일째 옮기면 된다.",
+  "schema": 1,
+  "id": "gas-flow",
+  "label": "GAS Flow",
+  "description": "Monday GAS 자동화 흐름 뷰어",
+  "order": 50,
+  "entry": "server.js",
+  "start": {
+    "command": [
+      "node",
+      "server.js"
+    ],
+    "timeoutMs": 8000
+  },
+  "url": "http://127.0.0.1:4747/",
+  "health": {
+    "path": "/diagrams.json",
+    "match": {
+      "$nonEmptyArray": true
+    }
+  }
+}
