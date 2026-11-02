@@ -135,6 +135,11 @@ npm run check
 
 - **라이트·다크 테마**: 헤더의 `다크 테마` 버튼으로 전환한다(`?theme=dark`도 가능). 노드는 흰색으로 고정되고 바깥 면만 바뀐다.
 - **HTML 내보내기**: `HTML 내보내기` 버튼은 mermaid·CSS·설정·다이어그램 데이터를 모두 넣은 HTML 한 장을 저장한다. 서버·인터넷 없이 `file://`로 열린다.
-- **서비스 아이콘(선택)**: `viewer.config.js`의 `icons.items`에 라벨 키워드와 배지를 적으면 노드 왼쪽 위에 배지가 붙는다. 기본값은 상표 문제를 피하려고 글자 배지만 쓴다. 로고를 쓰려면 라이선스를 확인한 SVG를 `svg`에 인라인으로 넣는다(외부 URL 금지). `icons.enabled: false`로 끈다.
+- **서비스 아이콘(선택)**: 노드 라벨에 서비스 이름이 들어 있으면 노드 안 위쪽에 큰 로고(34px)를 넣는다. 아이콘 자리를 렌더 전에 잡아서 노드 크기가 함께 커지므로 화살표·라벨을 가리지 않는다. 기본 세트는 `public/service-icons.js`, 덮어쓰기·추가는 `viewer.config.js`의 `icons.items`, 끄기는 `icons.enabled: false`. 매칭 단어는 `google sheets`, `apps script`, `gmail`처럼 구체적인 이름만 쓴다(‘시트’·‘저장’·‘메일’ 같은 흔한 말은 쓰지 않음).
 
 단일 HTML·노드 흰색 고정·렌더링 후 확인 아이디어는 [caru-ini/stack-diagram](https://github.com/caru-ini/stack-diagram)(MIT © caru-ini)을 참고했다. 코드는 복사하지 않고 새로 작성했다.
+
+### 아이콘 출처와 라이선스
+
+- Google Sheets, Google Apps Script, Gmail, Google Drive, Google Calendar, GitHub: [Simple Icons](https://simpleicons.org) v16.36.0, CC0-1.0. 로고 상표권은 각 회사(Google, GitHub)에 있으며 서비스 식별 용도로만 쓴다.
+- monday.com, Slack, Webhook, Database: Simple Icons에 없거나(monday.com, Slack) 공식 로고가 아닌 개념이라, 이 저장소에서 직접 그린 단순 도형을 브랜드 색으로 칠해 쓴다. 공식 로고가 아니다.

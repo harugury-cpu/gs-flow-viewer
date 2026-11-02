@@ -984,14 +984,16 @@ button:focus-visible,
   stroke: #8d939b !important;
 }
 
-/* ——— 서비스 아이콘 배지 (viewer.config.js icons) ——— */
-.diagram-mount .service-icon {
-  pointer-events: none;
+/* ——— 서비스 아이콘 (노드 안 위쪽) ——— */
+.svc-slot {
+  display: block;
+  width: 34px;
+  height: 34px;
+  margin: 2px auto 8px;
 }
 
-.diagram-mount .service-icon__text {
-  font-family: var(--mono);
-  font-size: 9px;
-  font-weight: 700;
-  fill: #ffffff;
+.svc-slot .svc-icon {
+  display: block;
+  width: 34px;
+  height: 34px;
 }

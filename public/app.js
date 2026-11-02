@@ -747,9 +747,9 @@ async function renderDiagram(diagram) {
 
   const isOverview = diagram === getOverview();
   const interactiveNodes = isOverview ? getInteractiveNodeMap(diagram.mermaidCode) : new Map();
-  const annotatedCode = isOverview
+  const annotatedCode = withServiceIconSlots(isOverview
     ? diagram.mermaidCode
-    : withFeaturedSourceAnnotation(diagram.mermaidCode, diagram);
+    : withFeaturedSourceAnnotation(diagram.mermaidCode, diagram));
   const source = annotatedCode;
   const renderSequence = ++state.renderSequence;
   const renderId = `mermaid-diagram-${renderSequence}`;
@@ -766,7 +766,7 @@ async function renderDiagram(diagram) {
     }
     bindAccessibleNodes(interactiveNodes);
     colorizeRenderedNodes(annotatedCode);
-    addServiceIcons(annotatedCode);
+    addServiceIcons();
     addFlowAnimation(diagram, annotatedCode);
     elements.diagramStatus.textContent = '렌더링 완료';
     const featuredFilters = getFeaturedSourceFilters(diagram);
@@ -866,70 +866,77 @@ if (elements.navClearFilter) {
   elements.navClearFilter.addEventListener('click', () => setFilter(null));
 }
 
-/* ——— 서비스 아이콘 배지 ——— */
+/* ——— 서비스 아이콘 (노드 안 위쪽, 34px) ———
+ * 레이아웃 아이디어: caru-ini/stack-diagram(MIT © caru-ini)의 "로고 + 라벨" 타일. 코드는 새로 작성.
+ * 렌더 전에 라벨 앞에 빈 자리(.svc-slot)를 넣어 Mermaid가 노드 크기를 아이콘까지 포함해 계산하게 하고,
+ * 렌더 후 그 자리에 인라인 SVG를 채운다. 그래서 화살표·라벨이 아이콘에 가려지지 않는다.
+ */
 const ICONS_CONFIG = viewerConfig.icons || {};
-const ICON_ITEMS = ICONS_CONFIG.enabled === false || !Array.isArray(ICONS_CONFIG.items)
-  ? []
-  : ICONS_CONFIG.items;
+const ICON_ITEMS = (() => {
+  if (ICONS_CONFIG.enabled === false) {
+    return [];
+  }
+  const merged = new Map();
+  (window.FLOW_VIEWER_SERVICE_ICONS || []).forEach((item) => merged.set(item.id, item));
+  (Array.isArray(ICONS_CONFIG.items) ? ICONS_CONFIG.items : []).forEach((item) => {
+    merged.set(item.id, { ...(merged.get(item.id) || {}), ...item });
+  });
+  return [...merged.values()].filter((item) => item.path && Array.isArray(item.keys));
+})();
+const ICON_BY_ID = new Map(ICON_ITEMS.map((item) => [item.id, item]));
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 function resolveServiceIcon(label) {
-  const normalized = ` ${String(label || '').toLowerCase()} `;
-  return ICON_ITEMS.find((item) => (item.keys || []).some((key) => normalized.includes(String(key).toLowerCase()))) || null;
+  const normalized = String(label || '').toLowerCase();
+  return ICON_ITEMS.find((item) => item.keys.some((key) => normalized.includes(String(key).toLowerCase()))) || null;
 }
 
-/** 노드 레이아웃을 바꾸지 않도록 노드 왼쪽 위 모서리에 SVG 배지를 겹쳐 붙인다. */
-function addServiceIcons(code) {
+/** 사각형·둥근 노드 라벨 앞에 아이콘 자리를 넣는다. 분기({})나 이미 HTML인 라벨은 건드리지 않는다. */
+function withServiceIconSlots(code) {
   if (ICON_ITEMS.length === 0) {
-    return;
+    return code;
   }
-  const nodes = [...elements.diagramMount.querySelectorAll('.node')];
-  parseNodeLabels(code).forEach((label, nodeId) => {
+  const pattern = /\b([A-Za-z][A-Za-z0-9_-]*)(\(?)\[(?:"([^"]+)"|([^\]"]+))\](\)?)/g;
+  return String(code).replace(pattern, (all, nodeId, openRound, quoted, plain, closeRound) => {
+    const label = (quoted || plain || '').trim();
+    if (/svc-slot|</.test(label) || nodeId === 'WHSRC' || nodeId === 'WHSRC_NOTE') {
+      return all;
+    }
     const icon = resolveServiceIcon(label);
-    const node = nodes.find((item) => matchesRenderedNodeId(item.id, nodeId));
-    if (!icon || !node || node.querySelector('.service-icon')) {
-      return;
+    if (!icon) {
+      return all;
     }
-    const shape = node.querySelector(':scope > rect, :scope > polygon, :scope > path, :scope > circle');
-    if (!shape || typeof shape.getBBox !== 'function') {
-      return;
+    const cylinder = !openRound && /^\(.*\)$/.test(label);
+    const inner = cylinder ? label.slice(1, -1).trim() : label;
+    const safe = inner.replace(/"/g, '#quot;');
+    if (cylinder) {
+      return `${nodeId}[("<span class='svc-slot' data-svc='${icon.id}'></span>${safe}")]`;
     }
-    const box = shape.getBBox();
-    const size = 18;
-    const group = document.createElementNS(SVG_NS, 'g');
-    group.setAttribute('class', 'service-icon');
-    group.dataset.iconId = icon.id;
-    group.setAttribute('transform', `translate(${box.x - size / 3}, ${box.y - size / 3})`);
+    return `${nodeId}${openRound}["<span class='svc-slot' data-svc='${icon.id}'></span>${safe}"]${closeRound}`;
+  });
+}
 
-    if (icon.svg) {
-      // 설정의 인라인 SVG만 허용한다(외부 URL 없음). 신뢰하는 로컬 설정 파일에서만 온다.
-      const holder = document.createElementNS(SVG_NS, 'svg');
-      holder.setAttribute('width', size);
-      holder.setAttribute('height', size);
-      holder.setAttribute('viewBox', icon.viewBox || '0 0 24 24');
-      holder.innerHTML = String(icon.svg).replace(/^\s*<svg[^>]*>|<\/svg>\s*$/g, '');
-      group.append(holder);
-    } else {
-      const badge = document.createElementNS(SVG_NS, 'rect');
-      badge.setAttribute('width', size + (String(icon.badge).length > 2 ? 6 : 0));
-      badge.setAttribute('height', size);
-      badge.setAttribute('rx', 5);
-      // Mermaid의 .node rect 규칙보다 우선하도록 인라인 style로 지정한다.
-      badge.style.cssText = `fill:${icon.color || '#5f6368'};stroke:#ffffff;stroke-width:1.5px`;
-      const text = document.createElementNS(SVG_NS, 'text');
-      text.setAttribute('class', 'service-icon__text');
-      text.setAttribute('x', Number(badge.getAttribute('width')) / 2);
-      text.setAttribute('y', size / 2);
-      text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('dominant-baseline', 'central');
-      text.style.cssText = 'fill:#ffffff';
-      text.textContent = String(icon.badge || icon.id || '?').slice(0, 3);
-      group.append(badge, text);
+function addServiceIcons() {
+  elements.diagramMount.querySelectorAll('.svc-slot').forEach((slot) => {
+    const icon = ICON_BY_ID.get(slot.dataset.svc);
+    if (!icon || slot.firstChild) {
+      return;
     }
-    const title = document.createElementNS(SVG_NS, 'title');
-    title.textContent = icon.id;
-    group.append(title);
-    node.append(group);
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('class', `svc-icon svc-icon--${icon.source || 'custom'}`);
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', icon.path);
+    path.style.fill = icon.color || '#5f6368';
+    svg.append(path);
+    slot.title = icon.title || icon.id;
+    slot.append(svg);
+    const node = slot.closest('.node');
+    if (node) {
+      node.classList.add('has-service-icon');
+      node.dataset.iconId = icon.id;
+    }
   });
 }
 
@@ -985,9 +992,10 @@ async function fetchText(url) {
 }
 
 async function buildStandaloneHtml() {
-  const [css, mermaidSource, configSource, appSource] = await Promise.all([
+  const [css, mermaidSource, iconsSource, configSource, appSource] = await Promise.all([
     fetchText('/style.css'),
     fetchText('/vendor/mermaid.min.js'),
+    fetchText('/service-icons.js'),
     fetchText('/viewer.config.js'),
     fetchText('/app.js'),
   ]);
@@ -1012,6 +1020,7 @@ async function buildStandaloneHtml() {
   const body = doc.querySelector('body');
   const scripts = [
     mermaidSource,
+    iconsSource,
     configSource,
     `window.FLOW_VIEWER_EMBEDDED_DIAGRAMS = ${JSON.stringify(state.diagrams).replace(/</g, '\\u003c')};`,
   ];
