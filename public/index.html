@@ -1,11 +1,18 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-theme="light">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="프로젝트의 실행 조건과 판단 기준을 살펴보는 흐름도">
     <title>프로젝트 흐름</title>
-    <link rel="stylesheet" href="/style.css">
+    <script>
+      // 깜빡임 없이 저장된 테마를 먼저 적용한다.
+      try {
+        const saved = new URLSearchParams(location.search).get('theme') || localStorage.getItem('flow-viewer-theme');
+        if (saved === 'dark' || saved === 'light') document.documentElement.dataset.theme = saved;
+      } catch (error) { /* file:// 등 저장소 제한 환경 */ }
+    </script>
+    <link rel="stylesheet" href="/style.css" data-inline-key="style">
   </head>
   <body>
     <div class="app-shell" id="app">
@@ -43,6 +50,10 @@
                 <h2 id="diagramTitle">다이어그램을 불러오는 중</h2>
               </div>
               <p id="diagramPath" class="diagram-path"></p>
+            </div>
+            <div class="header-actions" id="headerActions">
+              <button id="themeToggle" class="action-button" type="button" aria-pressed="false">다크 테마</button>
+              <button id="exportButton" class="action-button" type="button" title="서버·인터넷 없이 열리는 HTML 한 장으로 저장">HTML 내보내기</button>
             </div>
           </div>
 
@@ -88,8 +99,8 @@
       </main>
     </div>
 
-    <script src="/vendor/mermaid.min.js"></script>
-    <script src="/viewer.config.js"></script>
+    <script src="/vendor/mermaid.min.js" data-inline-key="mermaid"></script>
+    <script src="/viewer.config.js" data-inline-key="config"></script>
     <script type="module">
       function showLoadError(detail) {
         const status = document.querySelector('#diagramStatus');

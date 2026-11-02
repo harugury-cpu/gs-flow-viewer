@@ -766,6 +766,7 @@ async function renderDiagram(diagram) {
     }
     bindAccessibleNodes(interactiveNodes);
     colorizeRenderedNodes(annotatedCode);
+    addServiceIcons(annotatedCode);
     addFlowAnimation(diagram, annotatedCode);
     elements.diagramStatus.textContent = '렌더링 완료';
     const featuredFilters = getFeaturedSourceFilters(diagram);
@@ -826,14 +827,21 @@ function showLoadError(error) {
   elements.diagramTitle.textContent = '데이터 로드 실패';
 }
 
+async function fetchDiagrams() {
+  // 내보낸 단일 HTML에서는 데이터가 페이지 안에 들어 있으므로 네트워크 요청을 하지 않는다.
+  if (Array.isArray(window.FLOW_VIEWER_EMBEDDED_DIAGRAMS)) {
+    return window.FLOW_VIEWER_EMBEDDED_DIAGRAMS;
+  }
+  const response = await fetch('/diagrams.json', { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
 async function loadDiagrams() {
   try {
-    const response = await fetch('/diagrams.json', { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    state.diagrams = await response.json();
+    state.diagrams = await fetchDiagrams();
     if (!Array.isArray(state.diagrams) || state.diagrams.length === 0) {
       throw new Error('다이어그램 항목이 없습니다.');
     }
@@ -858,6 +866,202 @@ if (elements.navClearFilter) {
   elements.navClearFilter.addEventListener('click', () => setFilter(null));
 }
 
+/* ——— 서비스 아이콘 배지 ——— */
+const ICONS_CONFIG = viewerConfig.icons || {};
+const ICON_ITEMS = ICONS_CONFIG.enabled === false || !Array.isArray(ICONS_CONFIG.items)
+  ? []
+  : ICONS_CONFIG.items;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function resolveServiceIcon(label) {
+  const normalized = ` ${String(label || '').toLowerCase()} `;
+  return ICON_ITEMS.find((item) => (item.keys || []).some((key) => normalized.includes(String(key).toLowerCase()))) || null;
+}
+
+/** 노드 레이아웃을 바꾸지 않도록 노드 왼쪽 위 모서리에 SVG 배지를 겹쳐 붙인다. */
+function addServiceIcons(code) {
+  if (ICON_ITEMS.length === 0) {
+    return;
+  }
+  const nodes = [...elements.diagramMount.querySelectorAll('.node')];
+  parseNodeLabels(code).forEach((label, nodeId) => {
+    const icon = resolveServiceIcon(label);
+    const node = nodes.find((item) => matchesRenderedNodeId(item.id, nodeId));
+    if (!icon || !node || node.querySelector('.service-icon')) {
+      return;
+    }
+    const shape = node.querySelector(':scope > rect, :scope > polygon, :scope > path, :scope > circle');
+    if (!shape || typeof shape.getBBox !== 'function') {
+      return;
+    }
+    const box = shape.getBBox();
+    const size = 18;
+    const group = document.createElementNS(SVG_NS, 'g');
+    group.setAttribute('class', 'service-icon');
+    group.dataset.iconId = icon.id;
+    group.setAttribute('transform', `translate(${box.x - size / 3}, ${box.y - size / 3})`);
+
+    if (icon.svg) {
+      // 설정의 인라인 SVG만 허용한다(외부 URL 없음). 신뢰하는 로컬 설정 파일에서만 온다.
+      const holder = document.createElementNS(SVG_NS, 'svg');
+      holder.setAttribute('width', size);
+      holder.setAttribute('height', size);
+      holder.setAttribute('viewBox', icon.viewBox || '0 0 24 24');
+      holder.innerHTML = String(icon.svg).replace(/^\s*<svg[^>]*>|<\/svg>\s*$/g, '');
+      group.append(holder);
+    } else {
+      const badge = document.createElementNS(SVG_NS, 'rect');
+      badge.setAttribute('width', size + (String(icon.badge).length > 2 ? 6 : 0));
+      badge.setAttribute('height', size);
+      badge.setAttribute('rx', 5);
+      // Mermaid의 .node rect 규칙보다 우선하도록 인라인 style로 지정한다.
+      badge.style.cssText = `fill:${icon.color || '#5f6368'};stroke:#ffffff;stroke-width:1.5px`;
+      const text = document.createElementNS(SVG_NS, 'text');
+      text.setAttribute('class', 'service-icon__text');
+      text.setAttribute('x', Number(badge.getAttribute('width')) / 2);
+      text.setAttribute('y', size / 2);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('dominant-baseline', 'central');
+      text.style.cssText = 'fill:#ffffff';
+      text.textContent = String(icon.badge || icon.id || '?').slice(0, 3);
+      group.append(badge, text);
+    }
+    const title = document.createElementNS(SVG_NS, 'title');
+    title.textContent = icon.id;
+    group.append(title);
+    node.append(group);
+  });
+}
+
+/* ——— 라이트·다크 테마 ——— */
+const THEME_STORAGE_KEY = 'flow-viewer-theme';
+const themeToggle = document.querySelector('#themeToggle');
+
+function currentTheme() {
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+}
+
+function syncThemeToggle() {
+  if (!themeToggle) {
+    return;
+  }
+  const dark = currentTheme() === 'dark';
+  themeToggle.textContent = dark ? '라이트 테마' : '다크 테마';
+  themeToggle.setAttribute('aria-pressed', String(dark));
+}
+
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, currentTheme());
+  } catch (error) {
+    // file:// 등에서 저장소를 못 쓰면 이번 화면에만 적용한다.
+  }
+  syncThemeToggle();
+}
+
+if (themeToggle) {
+  themeToggle.addEventListener('click', () => setTheme(currentTheme() === 'dark' ? 'light' : 'dark'));
+}
+syncThemeToggle();
+
+/* ——— HTML 한 장으로 내보내기 ———
+ * 아이디어: caru-ini/stack-diagram(MIT © caru-ini)의 "폰트·로고를 인라인한 단일 HTML".
+ * 구현은 이 저장소용으로 새로 작성했다. mermaid·CSS·설정·데이터·앱 코드를 모두 페이지에 넣어
+ * file:// 로 열어도 외부 요청이 없다.
+ */
+const exportButton = document.querySelector('#exportButton');
+
+function escapeInlineScript(source) {
+  return String(source).replace(/<\/(script)/gi, '<\\/$1').replace(/<!--/g, '<\\!--');
+}
+
+async function fetchText(url) {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error(`${url} HTTP ${response.status}`);
+  }
+  return response.text();
+}
+
+async function buildStandaloneHtml() {
+  const [css, mermaidSource, configSource, appSource] = await Promise.all([
+    fetchText('/style.css'),
+    fetchText('/vendor/mermaid.min.js'),
+    fetchText('/viewer.config.js'),
+    fetchText('/app.js'),
+  ]);
+  const doc = document.documentElement.cloneNode(true);
+  doc.classList.add('is-exported');
+  doc.querySelectorAll('script').forEach((script) => script.remove());
+  doc.querySelectorAll('link[rel="stylesheet"]').forEach((link) => link.remove());
+  const mount = doc.querySelector('#diagramMount');
+  if (mount) {
+    mount.replaceChildren();
+  }
+  const navList = doc.querySelector('#diagramNavList');
+  if (navList) {
+    navList.replaceChildren();
+  }
+
+  const head = doc.querySelector('head');
+  const style = document.createElement('style');
+  style.textContent = css;
+  head.append(style);
+
+  const body = doc.querySelector('body');
+  const scripts = [
+    mermaidSource,
+    configSource,
+    `window.FLOW_VIEWER_EMBEDDED_DIAGRAMS = ${JSON.stringify(state.diagrams).replace(/</g, '\\u003c')};`,
+  ];
+  scripts.forEach((source) => {
+    const script = document.createElement('script');
+    script.textContent = source;
+    body.append(script);
+  });
+  const appScript = document.createElement('script');
+  appScript.type = 'module';
+  appScript.textContent = appSource;
+  body.append(appScript);
+
+  let html = `<!doctype html>\n${doc.outerHTML}`;
+  // textContent 직렬화 후 </script 문자열이 남지 않도록 다시 한 번 막는다.
+  html = html.replace(/(<script[^>]*>)([\s\S]*?)(<\/script>)/g, (all, open, inner, close) => (
+    `${open}${escapeInlineScript(inner)}${close}`
+  ));
+  return html;
+}
+
+window.FLOW_VIEWER_BUILD_STANDALONE = buildStandaloneHtml;
+
+if (exportButton) {
+  exportButton.addEventListener('click', async () => {
+    const original = exportButton.textContent;
+    exportButton.disabled = true;
+    exportButton.textContent = '내보내는 중';
+    try {
+      const html = await buildStandaloneHtml();
+      const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${(UI.title || 'flow').replace(/[\\/:*?"<>|\s]+/g, '-')}.html`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      setDataStatus(`내보내기 실패: ${error instanceof Error ? error.message : error}`, true);
+    } finally {
+      exportButton.disabled = false;
+      exportButton.textContent = original;
+    }
+  });
+}
+if (window.FLOW_VIEWER_EMBEDDED_DIAGRAMS && exportButton) {
+  exportButton.hidden = true;
+}
+
 // Mermaid themeVariables는 oklch/hex 파서가 제한적이라 sRGB hex만 사용한다.
 mermaid.initialize({
   startOnLoad: false,
@@ -873,17 +1077,18 @@ mermaid.initialize({
   themeVariables: {
     fontFamily: '"Inter", -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif',
     fontSize: '13px',
-    primaryColor: '#eef2f6',
+    // 노드는 테마와 무관하게 흰색 고정(다크 테마에서는 바깥 면만 바뀐다).
+    primaryColor: '#ffffff',
     primaryTextColor: '#0d0d0f',
     primaryBorderColor: '#c8cdd3',
-    lineColor: '#b0b4ba',
+    lineColor: '#9aa0a6',
     secondaryColor: '#f4f5f7',
     tertiaryColor: '#fbfbfc',
-    mainBkg: '#f4f5f7',
+    mainBkg: '#ffffff',
     nodeBorder: '#c8cdd3',
     clusterBkg: '#f4f5f7',
     titleColor: '#0d0d0f',
-    edgeLabelBackground: '#f4f5f7',
+    edgeLabelBackground: '#ffffff',
   },
 });
 

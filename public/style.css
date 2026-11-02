@@ -35,6 +35,26 @@
   line-height: 1.5;
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+}
+
+/*
+ * 다크 테마: 바깥 면·글자만 바꾸고 다이어그램 노드는 흰색으로 고정한다.
+ * (노드 고정 아이디어: caru-ini/stack-diagram, MIT © caru-ini — 코드는 가져오지 않음)
+ */
+:root[data-theme="dark"] {
+  --bg-primary: #111214;
+  --bg-secondary: #1a1c1f;
+  --bg-tertiary: #24272b;
+  --fg-primary: #f2f3f5;
+  --fg-muted: rgba(242, 243, 245, 0.66);
+  --fg-dim: rgba(242, 243, 245, 0.42);
+  --border: rgba(242, 243, 245, 0.1);
+  --border-strong: rgba(242, 243, 245, 0.16);
+  --accent: #4c9ff0;
+  --accent-soft: rgba(76, 159, 240, 0.16);
+  --danger-soft: #3a1a20;
+  color-scheme: dark;
 }
 
 * {
@@ -907,4 +927,71 @@ button:focus-visible,
   .diagram-mount .edgePaths path.flowchart-link.is-flow-animated {
     animation: none;
   }
+}
+
+/* ——— 헤더 동작 버튼 (테마 전환 · HTML 내보내기) ——— */
+.header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.action-button {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--fg-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background-color 200ms cubic-bezier(0.23, 1, 0.32, 1), color 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.action-button:hover {
+  color: var(--fg-primary);
+  background: var(--bg-secondary);
+}
+
+.is-exported .header-actions #exportButton {
+  display: none;
+}
+
+/* 노드는 테마와 무관하게 흰 면 + 진한 글자로 고정한다. */
+.diagram-mount .node > rect,
+.diagram-mount .node > polygon,
+.diagram-mount .node > path,
+.diagram-mount .node > circle {
+  fill: var(--node-fill, #ffffff);
+}
+
+.diagram-mount .node .label,
+.diagram-mount .node span,
+.diagram-mount .node text {
+  color: #0d0d0f;
+  fill: #0d0d0f;
+}
+
+:root[data-theme="dark"] .diagram-mount .edgePaths path,
+:root[data-theme="dark"] .diagram-mount .flowchart-link {
+  stroke: #8d939b !important;
+}
+
+:root[data-theme="dark"] .diagram-mount marker path {
+  fill: #8d939b !important;
+  stroke: #8d939b !important;
+}
+
+/* ——— 서비스 아이콘 배지 (viewer.config.js icons) ——— */
+.diagram-mount .service-icon {
+  pointer-events: none;
+}
+
+.diagram-mount .service-icon__text {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  fill: #ffffff;
 }
