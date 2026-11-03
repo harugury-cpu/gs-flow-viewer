@@ -105,6 +105,17 @@
 - **title block**: 그리드 셀 대신 얇은 `border-top` + 인라인 label:value 행. `app.js`의 `setTitleBlock()`이 `showDiagram`/`renderDiagram` 타이밍에 값을 채운다.
 - **접근성**: heading hierarchy, 오류는 상태 리전, 드릴다운 노드는 키보드 포커스 가능한 버튼.
 
+### Edges & groups
+
+선 문법은 [caru-ini/stack-diagram](https://github.com/caru-ini/stack-diagram)(MIT © caru-ini)의 `references/geometry.md`·`assets/template.html` 값을 따른다. 구현은 Mermaid 출력에 맞춰 새로 작성했다.
+
+- **모양**: 직각으로 꺾이는 선, 모서리는 둥글리지 않는다. Mermaid `curve: 'step'`으로 그린 뒤 `rerouteEdges()`가 노드 변 가운데에서 나가 변 가운데로 들어가게 다시 잡는다(분기 마름모는 꼭짓점). 같은 노드에서 갈라지는 선은 줄기를 같이 쓰고, 다른 노드·묶음 제목·라벨을 지나가는 경로는 버린다. 안전한 경로가 없으면 Mermaid 경로를 둔다.
+- **종류**: `-->` 주 흐름 = `--edge-primary` 1.6px 실선 · `-.->` 보조·배포·비동기 = `--edge-neutral` 1.4px `4 5` 점선 · `==>` 핵심 경로 = 강조색 2.4px.
+- **화살촉**: 채운 삼각형 10px, 색은 `context-stroke`로 선과 같다.
+- **라벨**: 상자 없이 mono 10.5px, 가로 구간은 선 위, 세로 구간은 선 오른쪽. 바탕색 halo가 있어 지나가는 선이 글자를 긋지 않는다. 실선 라벨은 강조색, 점선 라벨은 중립색.
+- **묶음(subgraph)**: 1.5px 테두리 + 옅은 면, 모서리 12px, 제목은 왼쪽 위 12px semibold. 묶음마다 주황·파랑을 번갈아 쓰고, 중첩 묶음은 점선 테두리. 제목에 서비스 이름이 있으면 14px 아이콘(다크에서는 흰 받침)을 앞에 둔다.
+- 라이트·다크 토큰: `--edge-primary` `#0076ed`/`#569fff`, `--edge-neutral` `#535961`/`#a0a5ac`, 묶음 `--group-a-*`·`--group-b-*`.
+
 ### Buttons & chips
 
 - pill 형태 통일(`--radius-pill`). Primary는 `--fg-primary` 배경 + `--bg-primary` 텍스트(고대비), Ghost/back-button은 투명 배경 + 보더.
@@ -112,7 +123,7 @@
 ## 6. Motion & Interaction
 
 - Micro: `200ms cubic-bezier(0.23, 1, 0.32, 1)` — X Business의 ease-out 커브
-- Flow trace: Mermaid 원본 관계선의 색·밝기를 고정한 채 `10 8` dash와 `54 → 0` offset을 2.4초마다 계속 흘리고, 연결 단계마다 160ms 위상 차이를 둔다. 노드 글로우·펄스, 선 페이드·굵기 변화는 적용하지 않는다.
+- Flow trace(선택, 기본 꺼짐): `viewer.config.js`의 `edges.animate: true`일 때만 관계선에 `10 8` dash와 `54 → 0` offset을 2.4초마다 흘리고, 연결 단계마다 160ms 위상 차이를 둔다. 켜면 실선도 점선처럼 보여 `-.->` 구분이 흐려지므로 기본은 정적인 선이다.
 - `prefers-reduced-motion: reduce`에서 전환 비활성화
 - `prefers-reduced-motion: reduce`에서는 전류 레이어도 숨기고 정적인 원본 관계선만 표시한다.
 - Mermaid 노드 클릭은 선택적 드릴다운, 사이드바 버튼이 주 내비게이션

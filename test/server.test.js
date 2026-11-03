@@ -58,3 +58,17 @@ test('설정 엔드포인트가 실행 가능한 JavaScript 설정을 반환한�
   assert.match(response.headers.get('content-type'), /^text\/javascript/);
   assert.match(body, /window\.FLOW_VIEWER_CONFIG/);
 });
+
+test('subgraph 묶음 예제가 섹션별로 파싱되고 묶음 정의를 그대로 넘긴다', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const markdown = fs.readFileSync(path.join(__dirname, '..', 'examples', 'groups.md'), 'utf8');
+  const diagrams = parseDiagrams(markdown);
+
+  assert.equal(diagrams[0].id, 'overview');
+  assert.deepEqual(diagrams.slice(1).map((diagram) => diagram.fileName), ['web-app.js', 'api-server.js', 'job-queue.js']);
+  const overview = diagrams[0].mermaidCode;
+  assert.equal((overview.match(/^\s*subgraph\b/gm) || []).length, 3);
+  assert.equal((overview.match(/^\s*end\s*$/gm) || []).length, 3);
+  assert.match(overview, /-\. deploy \.->/);
+});

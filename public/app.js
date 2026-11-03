@@ -767,7 +767,12 @@ async function renderDiagram(diagram) {
     bindAccessibleNodes(interactiveNodes);
     colorizeRenderedNodes(annotatedCode);
     addServiceIcons();
-    addFlowAnimation(diagram, annotatedCode);
+    const groups = styleGroups();
+    rerouteEdges(annotatedCode);
+    styleEdges(groups);
+    if (EDGES_CONFIG.animate === true) {
+      addFlowAnimation(diagram, annotatedCode);
+    }
     elements.diagramStatus.textContent = '렌더링 완료';
     const featuredFilters = getFeaturedSourceFilters(diagram);
     elements.diagramHint.textContent = isOverview
@@ -891,13 +896,39 @@ function resolveServiceIcon(label) {
   return ICON_ITEMS.find((item) => item.keys.some((key) => normalized.includes(String(key).toLowerCase()))) || null;
 }
 
+/**
+ * subgraph 제목에는 노드용 큰 아이콘 대신 제목 앞 작은 아이콘(14px)을 넣는다.
+ * (묶음 제목 왼쪽 위 + 작은 로고 배치 아이디어: caru-ini/stack-diagram, MIT © caru-ini — 코드는 새로 작성)
+ */
+function withGroupIconSlot(line) {
+  const match = line.match(/^(\s*subgraph\s+)([A-Za-z][A-Za-z0-9_-]*)\s*(?:\[(?:"([^"]+)"|([^\]"]+))\])?\s*$/);
+  if (!match) {
+    return line;
+  }
+  const [, prefix, groupId, quoted, plain] = match;
+  const label = (quoted || plain || groupId).trim();
+  const icon = /svc-slot|</.test(label) ? null : resolveServiceIcon(label);
+  if (!icon) {
+    return line;
+  }
+  const safe = label.replace(/"/g, '#quot;');
+  return `${prefix}${groupId}["<span class='svc-slot svc-slot--group' data-svc='${icon.id}'></span>${safe}"]`;
+}
+
 /** 사각형·둥근 노드 라벨 앞에 아이콘 자리를 넣는다. 분기({})나 이미 HTML인 라벨은 건드리지 않는다. */
 function withServiceIconSlots(code) {
   if (ICON_ITEMS.length === 0) {
     return code;
   }
+  return String(code)
+    .split('\n')
+    .map((line) => (/^\s*subgraph\b/.test(line) ? withGroupIconSlot(line) : withNodeIconSlots(line)))
+    .join('\n');
+}
+
+function withNodeIconSlots(line) {
   const pattern = /\b([A-Za-z][A-Za-z0-9_-]*)(\(?)\[(?:"([^"]+)"|([^\]"]+))\](\)?)/g;
-  return String(code).replace(pattern, (all, nodeId, openRound, quoted, plain, closeRound) => {
+  return line.replace(pattern, (all, nodeId, openRound, quoted, plain, closeRound) => {
     const label = (quoted || plain || '').trim();
     if (/svc-slot|</.test(label) || nodeId === 'WHSRC' || nodeId === 'WHSRC_NOTE') {
       return all;
@@ -933,10 +964,424 @@ function addServiceIcons() {
     slot.title = icon.title || icon.id;
     slot.append(svg);
     const node = slot.closest('.node');
-    if (node) {
+    if (node && !slot.classList.contains('svc-slot--group')) {
       node.classList.add('has-service-icon');
       node.dataset.iconId = icon.id;
     }
+  });
+}
+
+/* ——— 선(화살표)·묶음 박스 스타일 ———
+ * 선 문법 아이디어: caru-ini/stack-diagram(MIT © caru-ini)의 references/geometry.md
+ * (직각 선, 주 흐름=강조색 실선, 내부·배포=회색 점선, 같은 색 채운 삼각 화살촉, 배경색 halo 라벨, 왼쪽 위 묶음 제목).
+ * Mermaid 출력에 맞춰 코드는 새로 작성했다.
+ * - `-->`  : 주 흐름(강조색 실선)
+ * - `-.->` : 보조·배포·비동기(회색 점선)
+ * - `==>`  : 핵심 경로(강조색 굵은 실선)
+ */
+const EDGES_CONFIG = viewerConfig.edges || {};
+
+function edgeKind(path) {
+  if (path.classList.contains('edge-pattern-dotted') || path.classList.contains('edge-pattern-dashed')) {
+    return 'dashed';
+  }
+  return path.classList.contains('edge-thickness-thick') ? 'strong' : 'primary';
+}
+
+function rectOf(element) {
+  return {
+    x: Number(element.getAttribute('x')) || 0,
+    y: Number(element.getAttribute('y')) || 0,
+    width: Number(element.getAttribute('width')) || 0,
+    height: Number(element.getAttribute('height')) || 0,
+  };
+}
+
+function containsPoint(rect, x, y) {
+  return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
+}
+
+function parseTranslate(element) {
+  const match = String(element.getAttribute('transform') || '').match(/translate\(\s*([-\d.e]+)[ ,]+([-\d.e]+)/);
+  return match ? { x: Number(match[1]), y: Number(match[2]) } : { x: 0, y: 0 };
+}
+
+/** 묶음 박스: 둥근 모서리, 묶음마다 번갈아 색, 중첩은 점선, 제목은 왼쪽 위. 가장 안쪽 묶음 목록을 돌려준다. */
+function styleGroups() {
+  const clusters = [...elements.diagramMount.querySelectorAll('g.cluster')]
+    .map((cluster) => ({ cluster, rectElement: cluster.querySelector(':scope > rect') }))
+    .filter((item) => item.rectElement)
+    .map((item) => ({ ...item, rect: rectOf(item.rectElement) }));
+
+  clusters.forEach((item, index) => {
+    const { cluster, rectElement, rect } = item;
+    const parent = clusters.find((other) => other !== item
+      && containsPoint(other.rect, rect.x, rect.y)
+      && containsPoint(other.rect, rect.x + rect.width, rect.y + rect.height));
+    cluster.classList.add('flow-group', index % 2 === 0 ? 'flow-group--a' : 'flow-group--b');
+    cluster.classList.toggle('flow-group--nested', Boolean(parent));
+    rectElement.setAttribute('rx', '12');
+    rectElement.setAttribute('ry', '12');
+
+    const label = cluster.querySelector(':scope > .cluster-label');
+    if (label) {
+      label.setAttribute('transform', `translate(${rect.x + 12}, ${rect.y + 8})`);
+      const box = label.querySelector('foreignObject > div');
+      if (box) {
+        box.style.textAlign = 'left';
+      }
+    }
+  });
+  return clusters;
+}
+
+/* 직각 경로 다시 잡기:
+ * Mermaid의 'step' 곡선은 끝점이 노드 모서리 근처에 찍혀 화살표가 노드 변을 따라 옆으로 들어가는 일이 있다.
+ * stack-diagram geometry.md 의 규칙(변 가운데에서 나가 변 가운데로 들어감, 꺾임은 노드 사이 빈 띠, 노드 상자를 지나지 않음)대로
+ * 경로를 다시 계산하고, 다른 노드·묶음 제목·라벨을 지나가면 Mermaid 경로를 그대로 둔다.
+ */
+const ARROW_GAP = 4;
+const OBSTACLE_PAD = 6;
+
+function toLocalRect(element, ctmInverse) {
+  const box = element.getBoundingClientRect();
+  const a = new DOMPoint(box.left, box.top).matrixTransform(ctmInverse);
+  const b = new DOMPoint(box.right, box.bottom).matrixTransform(ctmInverse);
+  return { left: Math.min(a.x, b.x), top: Math.min(a.y, b.y), right: Math.max(a.x, b.x), bottom: Math.max(a.y, b.y) };
+}
+
+function segmentHitsRect(p, q, rect, pad = OBSTACLE_PAD) {
+  const left = Math.min(p.x, q.x);
+  const right = Math.max(p.x, q.x);
+  const top = Math.min(p.y, q.y);
+  const bottom = Math.max(p.y, q.y);
+  return right > rect.left - pad && left < rect.right + pad && bottom > rect.top - pad && top < rect.bottom + pad;
+}
+
+function boxesOverlap(a, b, pad = 2) {
+  return a.left < b.right + pad && a.right > b.left - pad && a.top < b.bottom + pad && a.bottom > b.top - pad;
+}
+
+function getFlowDirection(code) {
+  const match = String(code || '').match(/^\s*(?:flowchart|graph)\s+(TB|TD|BT|LR|RL)\b/m);
+  return match && (match[1] === 'LR' || match[1] === 'RL') ? 'horizontal' : 'vertical';
+}
+
+function splitEdgeId(dataId, nodeIds) {
+  const match = String(dataId || '').match(/^L_(.+)_\d+$/);
+  if (!match) {
+    return null;
+  }
+  const body = match[1];
+  for (let index = body.indexOf('_'); index > 0; index = body.indexOf('_', index + 1)) {
+    const from = body.slice(0, index);
+    const to = body.slice(index + 1);
+    if (nodeIds.has(from) && nodeIds.has(to)) {
+      return { from, to };
+    }
+  }
+  return null;
+}
+
+/** 두 상자 사이 직각 경로 후보. axis 'h'는 옆변끼리, 'v'는 윗변·아랫변끼리 잇는다. */
+function orthogonalCandidates(source, target, axis, blockers = [], sharedElbow = null) {
+  const candidates = [];
+  const allowShortcut = source.isBox && target.isBox;
+  if (axis === 'h') {
+    const forward = target.left >= source.right;
+    const sx = forward ? source.right : source.left;
+    const tx = forward ? target.left - ARROW_GAP : target.right + ARROW_GAP;
+    // 원통·둥근 노드는 옆벽 가운데 60%만 곧은 면으로 본다.
+    const inner = (rect) => (rect.isBox ? [rect.top, rect.bottom] : [
+      rect.top + (rect.bottom - rect.top) * 0.2,
+      rect.bottom - (rect.bottom - rect.top) * 0.2,
+    ]);
+    const overlapTop = Math.max(inner(source)[0], inner(target)[0]);
+    const overlapBottom = Math.min(inner(source)[1], inner(target)[1]);
+    if (source.hasSideWalls && target.hasSideWalls && overlapBottom - overlapTop >= 12) {
+      const y = (overlapTop + overlapBottom) / 2;
+      candidates.push([{ x: sx, y }, { x: tx, y }]);
+    }
+    const sy = (source.top + source.bottom) / 2;
+    const ty = (target.top + target.bottom) / 2;
+    const gap = Math.abs(tx - sx);
+    // 같은 노드에서 갈라지는 선은 같은 자리에서 꺾어 줄기 하나로 보이게 한다.
+    const elbows = [0.5, 0.25, 0.75].map((ratio) => ({ at: sx + (tx - sx) * ratio, room: gap * Math.min(ratio, 1 - ratio) }));
+    if (sharedElbow !== null) {
+      elbows.unshift({ at: sharedElbow, room: Math.min(Math.abs(sharedElbow - sx), Math.abs(tx - sharedElbow)) });
+    }
+    elbows.forEach(({ at: mx, room }) => {
+      if (room >= 10) {
+        candidates.push([{ x: sx, y: sy }, { x: mx, y: sy }, { x: mx, y: ty }, { x: tx, y: ty }]);
+      }
+    });
+    // 사이에 다른 노드가 있으면 그 노드 위·아래 빈 띠로 돌아간다.
+    const direction = Math.sign(tx - sx) || 1;
+    const x1 = sx + direction * 14;
+    const x2 = tx - direction * 18;
+    detourLanes(blockers, 'h', Math.min(x1, x2), Math.max(x1, x2), (sy + ty) / 2).forEach((lane) => {
+      candidates.push([{ x: sx, y: sy }, { x: x1, y: sy }, { x: x1, y: lane }, { x: x2, y: lane }, { x: x2, y: ty }, { x: tx, y: ty }]);
+    });
+    return candidates;
+  }
+  const forward = target.top >= source.bottom;
+  const sy = forward ? source.bottom : source.top;
+  const ty = forward ? target.top - ARROW_GAP : target.bottom + ARROW_GAP;
+  const overlapLeft = Math.max(source.left, target.left);
+  const overlapRight = Math.min(source.right, target.right);
+  const sxCenter = (source.left + source.right) / 2;
+  const txCenter = (target.left + target.right) / 2;
+  if (overlapRight - overlapLeft >= 12 && (allowShortcut || Math.abs(sxCenter - txCenter) < 2)) {
+    const x = Math.abs(sxCenter - txCenter) < 2 ? sxCenter : (overlapLeft + overlapRight) / 2;
+    candidates.push([{ x, y: sy }, { x, y: ty }]);
+  }
+  const gap = Math.abs(ty - sy);
+  const elbows = [0.5, 0.3, 0.7].map((ratio) => ({ at: sy + (ty - sy) * ratio, room: gap * Math.min(ratio, 1 - ratio) }));
+  if (sharedElbow !== null) {
+    elbows.unshift({ at: sharedElbow, room: Math.min(Math.abs(sharedElbow - sy), Math.abs(ty - sharedElbow)) });
+  }
+  elbows.forEach(({ at: my, room }) => {
+    if (room >= 10) {
+      candidates.push([{ x: sxCenter, y: sy }, { x: sxCenter, y: my }, { x: txCenter, y: my }, { x: txCenter, y: ty }]);
+    }
+  });
+  const direction = Math.sign(ty - sy) || 1;
+  const y1 = sy + direction * 14;
+  const y2 = ty - direction * 18;
+  detourLanes(blockers, 'v', Math.min(y1, y2), Math.max(y1, y2), (sxCenter + txCenter) / 2).forEach((lane) => {
+    candidates.push([{ x: sxCenter, y: sy }, { x: sxCenter, y: y1 }, { x: lane, y: y1 }, { x: lane, y: y2 }, { x: txCenter, y: y2 }, { x: txCenter, y: ty }]);
+  });
+  return candidates;
+}
+
+/** 우회 통로 후보: from~to 구간을 가로막는 노드들의 바깥쪽 선(20px 띄움), 가까운 순. */
+function detourLanes(blockers, axis, from, to, center) {
+  const lanes = [];
+  blockers.forEach((rect) => {
+    const [start, end] = axis === 'v' ? [rect.top, rect.bottom] : [rect.left, rect.right];
+    if (end < from || start > to) {
+      return;
+    }
+    if (axis === 'v') {
+      lanes.push(rect.left - 20, rect.right + 20);
+    } else {
+      lanes.push(rect.top - 20, rect.bottom + 20);
+    }
+  });
+  return [...new Set(lanes.map((lane) => Math.round(lane)))]
+    .sort((a, b) => Math.abs(a - center) - Math.abs(b - center))
+    .slice(0, 8);
+}
+
+function pathFromPoints(points) {
+  return points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x.toFixed(2)},${point.y.toFixed(2)}`)
+    .join('');
+}
+
+/**
+ * 라벨 자리: 가로 구간은 선 위(stack-diagram: y = lineY - 8), 세로 구간은 선 오른쪽(x = lineX + 10).
+ * 긴 구간부터 보고, 노드·묶음 제목·다른 라벨과 겹치지 않는 첫 자리를 쓴다.
+ */
+function placeEdgeLabel(points, size, obstacles, groups = []) {
+  const segments = points.slice(1)
+    .map((point, index) => ({ p: points[index], q: point }))
+    .map((segment) => ({ ...segment, length: Math.abs(segment.q.x - segment.p.x) + Math.abs(segment.q.y - segment.p.y) }))
+    .sort((a, b) => b.length - a.length);
+  for (const { p, q, length } of segments) {
+    const horizontal = Math.abs(q.y - p.y) < 0.5;
+    if (length < (horizontal ? size.width : size.height) + 8) {
+      continue;
+    }
+    const mid = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+    const centers = horizontal
+      ? [{ x: mid.x, y: mid.y - size.height / 2 - 2 }, { x: mid.x, y: mid.y + size.height / 2 + 2 }]
+      : [{ x: mid.x + 10 + size.width / 2, y: mid.y }, { x: mid.x - 10 - size.width / 2, y: mid.y }];
+    for (const center of centers) {
+      const box = {
+        left: center.x - size.width / 2,
+        right: center.x + size.width / 2,
+        top: center.y - size.height / 2,
+        bottom: center.y + size.height / 2,
+      };
+      const straddlesGroup = groups.some((rect) => boxesOverlap(box, rect, 0)
+        && !(box.left >= rect.left && box.right <= rect.right && box.top >= rect.top && box.bottom <= rect.bottom));
+      if (!straddlesGroup && !obstacles.some((rect) => boxesOverlap(box, rect))) {
+        return { center, box };
+      }
+    }
+  }
+  return null;
+}
+
+/** 같은 축에서 3px 안으로 겹쳐 달리는 구간이 있으면 선이 합쳐져 보이므로 피한다. */
+function runsAlong(p, q, segment) {
+  const horizontal = Math.abs(q.y - p.y) < 0.5;
+  const other = Math.abs(segment.q.y - segment.p.y) < 0.5;
+  if (horizontal !== other) {
+    return false;
+  }
+  if (horizontal) {
+    return Math.abs(p.y - segment.p.y) < 3
+      && Math.min(Math.max(p.x, q.x), Math.max(segment.p.x, segment.q.x)) - Math.max(Math.min(p.x, q.x), Math.min(segment.p.x, segment.q.x)) > 2;
+  }
+  return Math.abs(p.x - segment.p.x) < 3
+    && Math.min(Math.max(p.y, q.y), Math.max(segment.p.y, segment.q.y)) - Math.max(Math.min(p.y, q.y), Math.min(segment.p.y, segment.q.y)) > 2;
+}
+
+function rerouteEdges(code) {
+  const mount = elements.diagramMount;
+  const paths = [...mount.querySelectorAll('.edgePaths path.flowchart-link')];
+  if (paths.length === 0) {
+    return;
+  }
+  const ctm = paths[0].getScreenCTM();
+  if (!ctm) {
+    return;
+  }
+  const toLocal = ctm.inverse();
+  const nodes = new Map();
+  mount.querySelectorAll('g.node').forEach((node) => {
+    const match = node.id.match(/flowchart-(.+)-\d+$/);
+    if (match) {
+      // 사각형이 아닌 노드(분기 마름모·원통·원)는 변 가운데(꼭짓점)에서만 선을 잇는다.
+      const shape = node.querySelector(':scope > rect, :scope > polygon, :scope > path, :scope > circle, :scope > g');
+      const tag = shape ? shape.tagName.toLowerCase() : '';
+      nodes.set(match[1], { ...toLocalRect(node, toLocal), isBox: tag === 'rect', hasSideWalls: tag === 'rect' || tag === 'path' });
+    }
+  });
+  const groupTitles = [...mount.querySelectorAll('g.cluster > .cluster-label')].map((label) => toLocalRect(label, toLocal));
+  const groupBoxes = [...mount.querySelectorAll('g.cluster > rect')].map((rect) => toLocalRect(rect, toLocal));
+  const labelsById = new Map();
+  mount.querySelectorAll('.edgeLabels > .edgeLabel').forEach((edgeLabel) => {
+    const inner = edgeLabel.querySelector('.label[data-id]');
+    const foreign = edgeLabel.querySelector('foreignObject');
+    if (inner && foreign && edgeLabel.textContent.trim()) {
+      // 라벨 글꼴(mono)이 Mermaid가 잰 글꼴보다 넓으므로 실제 크기로 다시 맞춘다.
+      const text = foreign.querySelector('span.edgeLabel') || foreign.firstElementChild;
+      const scale = Math.hypot(ctm.a, ctm.b) || 1;
+      const measured = text ? text.getBoundingClientRect() : null;
+      const size = measured && measured.width > 0
+        ? { width: Math.ceil(measured.width / scale) + 2, height: Math.ceil(measured.height / scale) + 2 }
+        : { width: Number(foreign.getAttribute('width')) || 0, height: Number(foreign.getAttribute('height')) || 0 };
+      foreign.setAttribute('width', String(size.width));
+      foreign.setAttribute('height', String(size.height));
+      inner.setAttribute('transform', `translate(${-size.width / 2}, ${-size.height / 2})`);
+      labelsById.set(inner.dataset.id, { element: edgeLabel, size });
+    }
+  });
+
+  const preferred = getFlowDirection(code) === 'horizontal' ? 'h' : 'v';
+  const nodeIds = new Set(nodes.keys());
+  const placedLabels = [];
+  const placedSegments = [];
+  const elbowBySource = new Map();
+
+  paths.forEach((path) => {
+    const ends = splitEdgeId(path.dataset.id, nodeIds);
+    if (!ends || ends.from === ends.to) {
+      return;
+    }
+    const source = nodes.get(ends.from);
+    const target = nodes.get(ends.to);
+    const gapX = Math.max(target.left - source.right, source.left - target.right);
+    const gapY = Math.max(target.top - source.bottom, source.top - target.bottom);
+    if (gapX <= 8 && gapY <= 8) {
+      return;
+    }
+    const axes = [];
+    const gapOf = (axis) => (axis === 'h' ? gapX : gapY);
+    const other = preferred === 'h' ? 'v' : 'h';
+    [preferred, other].sort((a, b) => (gapOf(b) > 8) - (gapOf(a) > 8)).forEach((axis) => {
+      if (gapOf(axis) > 8) {
+        axes.push(axis);
+      }
+    });
+
+    const blockers = [...nodes.entries()]
+      .filter(([id]) => id !== ends.from && id !== ends.to)
+      .map(([, rect]) => rect)
+      .concat(groupTitles);
+    const label = labelsById.get(path.dataset.id);
+    const kind = edgeKind(path);
+
+    for (const axis of axes) {
+      const sharedElbow = elbowBySource.has(`${ends.from}:${axis}`) ? elbowBySource.get(`${ends.from}:${axis}`) : null;
+      for (const points of orthogonalCandidates(source, target, axis, blockers, sharedElbow)) {
+        // 같은 노드에서 갈라지거나 모이는 선은 줄기를 같이 써도 된다(stack-diagram 예시의 분기 모양).
+        const clear = points.slice(1).every((point, index) => (
+          !blockers.some((rect) => segmentHitsRect(points[index], point, rect))
+          && !placedSegments.some((segment) => !(segment.kind === kind && (segment.from === ends.from || segment.to === ends.to))
+            && runsAlong(points[index], point, segment))
+          && !placedLabels.some((rect) => segmentHitsRect(points[index], point, rect, 2))
+        ));
+        if (!clear) {
+          continue;
+        }
+        let placement = null;
+        if (label) {
+          placement = placeEdgeLabel(points, label.size, [...nodes.values(), ...groupTitles, ...placedLabels], groupBoxes);
+          if (!placement) {
+            continue;
+          }
+        }
+        path.setAttribute('d', pathFromPoints(points));
+        path.classList.add('is-rerouted');
+        points.slice(1).forEach((point, index) => placedSegments.push({ p: points[index], q: point, kind, ...ends }));
+        if (points.length === 4 && !elbowBySource.has(`${ends.from}:${axis}`)) {
+          elbowBySource.set(`${ends.from}:${axis}`, axis === 'h' ? points[1].x : points[1].y);
+        }
+        if (label && placement) {
+          const screen = new DOMPoint(placement.center.x, placement.center.y).matrixTransform(ctm);
+          const parentCtm = label.element.parentNode.getScreenCTM();
+          const local = parentCtm ? screen.matrixTransform(parentCtm.inverse()) : placement.center;
+          label.element.setAttribute('transform', `translate(${local.x}, ${local.y})`);
+          placedLabels.push(placement.box);
+        }
+        return;
+      }
+    }
+    if (label) {
+      const current = toLocalRect(label.element, toLocal);
+      placedLabels.push(current);
+    }
+  });
+}
+
+function styleEdges(clusters) {
+  const mount = elements.diagramMount;
+  const kinds = new Map();
+  mount.querySelectorAll('.edgePaths path.flowchart-link').forEach((path) => {
+    const kind = edgeKind(path);
+    path.classList.add('flow-edge', `flow-edge--${kind}`);
+    if (path.dataset.id) {
+      kinds.set(path.dataset.id, kind);
+    }
+  });
+
+  mount.querySelectorAll('.edgeLabels > .edgeLabel').forEach((edgeLabel) => {
+    const inner = edgeLabel.querySelector('.label[data-id]');
+    const kind = (inner && kinds.get(inner.dataset.id)) || 'primary';
+    edgeLabel.classList.add('flow-edge-label', `flow-edge-label--${kind}`);
+    if (!edgeLabel.textContent.trim()) {
+      edgeLabel.classList.add('is-empty');
+      return;
+    }
+    // 라벨 halo 색은 라벨이 놓인 면(묶음 안이면 그 묶음 색)에 맞춘다.
+    const { x, y } = parseTranslate(edgeLabel);
+    const host = clusters
+      .filter((item) => containsPoint(item.rect, x, y))
+      .sort((a, b) => a.rect.width * a.rect.height - b.rect.width * b.rect.height)[0];
+    if (host) {
+      edgeLabel.classList.add(host.cluster.classList.contains('flow-group--b') ? 'is-on-group-b' : 'is-on-group-a');
+    }
+  });
+
+  // 화살촉: 채운 삼각형, 선 굵기에 맞춘 크기. 색은 CSS에서 선 색(context-stroke)을 따른다.
+  mount.querySelectorAll('marker[id$="-pointEnd"], marker[id$="-pointStart"]').forEach((marker) => {
+    marker.setAttribute('markerWidth', '10');
+    marker.setAttribute('markerHeight', '10');
+    marker.setAttribute('refX', marker.id.endsWith('-pointEnd') ? '6' : '4');
   });
 }
 
@@ -1077,7 +1522,8 @@ mermaid.initialize({
   securityLevel: 'strict',
   theme: 'base',
   flowchart: {
-    curve: 'basis',
+    // 직각으로 꺾이는 선(stack-diagram의 H/V 경로와 같은 모양). viewer.config.js 의 edges.curve 로 바꿀 수 있다.
+    curve: EDGES_CONFIG.curve || 'step',
     padding: 22,
     nodeSpacing: 48,
     rankSpacing: 56,
@@ -1090,12 +1536,13 @@ mermaid.initialize({
     primaryColor: '#ffffff',
     primaryTextColor: '#0d0d0f',
     primaryBorderColor: '#c8cdd3',
-    lineColor: '#9aa0a6',
+    lineColor: '#0076ed',
     secondaryColor: '#f4f5f7',
     tertiaryColor: '#fbfbfc',
     mainBkg: '#ffffff',
     nodeBorder: '#c8cdd3',
-    clusterBkg: '#f4f5f7',
+    clusterBkg: '#f0f6fd',
+    clusterBorder: '#8fb6ec',
     titleColor: '#0d0d0f',
     edgeLabelBackground: '#ffffff',
   },

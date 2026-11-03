@@ -137,6 +137,17 @@ npm run check
 - **HTML 내보내기**: `HTML 내보내기` 버튼은 mermaid·CSS·설정·다이어그램 데이터를 모두 넣은 HTML 한 장을 저장한다. 서버·인터넷 없이 `file://`로 열린다.
 - **서비스 아이콘(선택)**: 노드 라벨에 서비스 이름이 들어 있으면 노드 안 위쪽에 큰 로고(34px)를 넣는다. 아이콘 자리를 렌더 전에 잡아서 노드 크기가 함께 커지므로 화살표·라벨을 가리지 않는다. 기본 세트는 `public/service-icons.js`, 덮어쓰기·추가는 `viewer.config.js`의 `icons.items`, 끄기는 `icons.enabled: false`. 매칭 단어는 `google sheets`, `apps script`, `gmail`처럼 구체적인 이름만 쓴다(‘시트’·‘저장’·‘메일’ 같은 흔한 말은 쓰지 않음).
 
+## 선(화살표)과 묶음 박스
+
+- **선 모양**: 직각으로 꺾이는 선(모서리 각짐). 노드 변 가운데에서 나가 변 가운데로 들어가고, 다른 노드·아이콘·라벨·묶음 제목을 지나가지 않게 경로를 고른다. 안전한 경로를 못 찾으면 Mermaid가 그린 경로를 그대로 쓴다.
+- **선 종류**: `-->` 주 흐름(파란 1.6px 실선) · `-.->` 보조·배포·비동기(회색 1.4px 점선) · `==>` 핵심 경로(파란 2.4px). 화살촉은 선과 같은 색의 채운 삼각형.
+- **선 라벨**: 상자 없는 작은 고정폭 글자. 가로선은 선 위, 세로선은 선 오른쪽에 둔다.
+- **묶음(subgraph)**: 옅은 면 + 1.5px 테두리 + 둥근 모서리, 제목은 왼쪽 위. 묶음마다 주황·파랑을 번갈아 쓰고 중첩 묶음은 점선 테두리. 제목에 서비스 이름이 있으면 작은 아이콘을 붙인다(노드용 큰 아이콘은 넣지 않음).
+- **설정**: `viewer.config.js`의 `edges.curve`(`step` 기본, `rounded`·`linear`·`basis`)와 `edges.animate`(흐름 애니메이션, 기본 꺼짐).
+- **예제**: `DIAGRAM_SOURCE=examples/groups.md node server.js` — 회사 데이터 없는 subgraph 3개짜리 예제.
+
+선 모양·굵기·색·점선·화살촉·라벨 규칙은 [caru-ini/stack-diagram](https://github.com/caru-ini/stack-diagram)(MIT © caru-ini)의 `references/geometry.md`와 `assets/template.html`을 참고했다. 색·굵기 같은 수치(oklch 토큰을 sRGB hex로 옮긴 값)만 가져왔고 코드는 복사하지 않고 Mermaid 출력에 맞춰 새로 작성했다.
+
 단일 HTML·노드 흰색 고정·렌더링 후 확인 아이디어는 [caru-ini/stack-diagram](https://github.com/caru-ini/stack-diagram)(MIT © caru-ini)을 참고했다. 코드는 복사하지 않고 새로 작성했다.
 
 ### 아이콘 출처와 라이선스
