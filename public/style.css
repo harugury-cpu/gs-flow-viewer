@@ -35,6 +35,26 @@
   line-height: 1.5;
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+}
+
+/*
+ * 다크 테마: 바깥 면·글자만 바꾸고 다이어그램 노드는 흰색으로 고정한다.
+ * (노드 고정 아이디어: caru-ini/stack-diagram, MIT © caru-ini — 코드는 가져오지 않음)
+ */
+:root[data-theme="dark"] {
+  --bg-primary: #111214;
+  --bg-secondary: #1a1c1f;
+  --bg-tertiary: #24272b;
+  --fg-primary: #f2f3f5;
+  --fg-muted: rgba(242, 243, 245, 0.66);
+  --fg-dim: rgba(242, 243, 245, 0.42);
+  --border: rgba(242, 243, 245, 0.1);
+  --border-strong: rgba(242, 243, 245, 0.16);
+  --accent: #4c9ff0;
+  --accent-soft: rgba(76, 159, 240, 0.16);
+  --danger-soft: #3a1a20;
+  color-scheme: dark;
 }
 
 * {
@@ -907,4 +927,203 @@ button:focus-visible,
   .diagram-mount .edgePaths path.flowchart-link.is-flow-animated {
     animation: none;
   }
+}
+
+/* ——— 헤더 동작 버튼 (테마 전환 · HTML 내보내기) ——— */
+.header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.action-button {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--fg-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background-color 200ms cubic-bezier(0.23, 1, 0.32, 1), color 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.action-button:hover {
+  color: var(--fg-primary);
+  background: var(--bg-secondary);
+}
+
+.is-exported .header-actions #exportButton {
+  display: none;
+}
+
+/* 노드는 테마와 무관하게 흰 면 + 진한 글자로 고정한다. */
+.diagram-mount .node > rect,
+.diagram-mount .node > polygon,
+.diagram-mount .node > path,
+.diagram-mount .node > circle {
+  fill: var(--node-fill, #ffffff);
+}
+
+.diagram-mount .node .label,
+.diagram-mount .node span,
+.diagram-mount .node text {
+  color: #0d0d0f;
+  fill: #0d0d0f;
+}
+
+
+/* ——— 서비스 아이콘 (노드 안 위쪽) ——— */
+.svc-slot {
+  display: block;
+  width: 34px;
+  height: 34px;
+  margin: 2px auto 8px;
+}
+
+.svc-slot .svc-icon {
+  display: block;
+  width: 34px;
+  height: 34px;
+}
+
+/* 묶음 제목 앞 작은 아이콘. 다크 테마에서는 검은 로고가 묻히지 않게 흰 받침을 깐다(크기는 두 테마 같음). */
+.svc-slot--group {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  margin: 0 6px 0 0;
+  padding: 2px;
+  border-radius: 3px;
+  vertical-align: -4px;
+}
+
+.svc-slot--group .svc-icon {
+  width: 14px;
+  height: 14px;
+}
+
+:root[data-theme="dark"] .svc-slot--group {
+  background: #ffffff;
+}
+
+/*
+ * ——— 선(화살표)과 묶음 박스 ———
+ * 값은 caru-ini/stack-diagram(MIT © caru-ini) assets/template.html 의 edge·group 토큰을
+ * sRGB hex로 옮긴 것이다(.e 1.6px 강조색 · .n 1.4px 중립색 · .dash 4 5 · .el 10.5px mono + halo).
+ * 선택자와 Mermaid 대응은 이 저장소에서 새로 작성했다.
+ */
+:root {
+  --edge-primary: #0076ed;
+  --edge-neutral: #535961;
+  --edge-halo: var(--bg-secondary);
+  --group-a-border: #e0a578;
+  --group-a-fill: #fbf3ec;
+  --group-a-ink: #a64b00;
+  --group-b-border: #8fb6ec;
+  --group-b-fill: #edf4fd;
+  --group-b-ink: #0067d1;
+}
+
+:root[data-theme="dark"] {
+  --edge-primary: #569fff;
+  --edge-neutral: #a0a5ac;
+  --group-a-border: #9a6236;
+  --group-a-fill: #2a1f16;
+  --group-a-ink: #f2a26a;
+  --group-b-border: #3d6aa6;
+  --group-b-fill: #17243a;
+  --group-b-ink: #7db5ff;
+}
+
+.diagram-mount .edgePaths path.flow-edge {
+  fill: none !important;
+  stroke: var(--edge-primary) !important;
+  stroke-width: 1.6px !important;
+  stroke-dasharray: none;
+  stroke-linejoin: miter;
+}
+
+.diagram-mount .edgePaths path.flow-edge--strong {
+  stroke-width: 2.4px !important;
+}
+
+.diagram-mount .edgePaths path.flow-edge.flow-edge--dashed {
+  stroke: var(--edge-neutral) !important;
+  stroke-width: 1.4px !important;
+  stroke-dasharray: 4 5 !important;
+}
+
+/* 화살촉은 선과 같은 색(context-stroke). 지원하지 않는 브라우저는 강조색으로 남는다. */
+.diagram-mount marker path,
+.diagram-mount marker polygon {
+  fill: var(--edge-primary) !important;
+  fill: context-stroke !important;
+  stroke: none !important;
+}
+
+/* 선 라벨: 상자 없이 mono 글자 + 바탕색 halo. 선이 글자를 긋고 지나가지 않는다. */
+.diagram-mount .flow-edge-label .labelBkg,
+.diagram-mount .flow-edge-label span.edgeLabel,
+.diagram-mount .flow-edge-label p {
+  background: transparent !important;
+}
+
+.diagram-mount .flow-edge-label span.edgeLabel {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--edge-halo) !important;
+  color: var(--edge-primary) !important;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+}
+
+.diagram-mount .flow-edge-label--dashed span.edgeLabel {
+  color: var(--edge-neutral) !important;
+}
+
+.diagram-mount .flow-edge-label.is-on-group-a span.edgeLabel {
+  background: var(--group-a-fill) !important;
+}
+
+.diagram-mount .flow-edge-label.is-on-group-b span.edgeLabel {
+  background: var(--group-b-fill) !important;
+}
+
+.diagram-mount .flow-edge-label.is-empty span.edgeLabel {
+  padding: 0;
+}
+
+/* 묶음 박스: 1.5px 테두리 + 옅은 면, 제목은 왼쪽 위 */
+.diagram-mount .cluster.flow-group > rect {
+  fill: var(--group-a-fill) !important;
+  stroke: var(--group-a-border) !important;
+  stroke-width: 1.5px !important;
+}
+
+.diagram-mount .cluster.flow-group--b > rect {
+  fill: var(--group-b-fill) !important;
+  stroke: var(--group-b-border) !important;
+}
+
+.diagram-mount .cluster.flow-group--nested > rect {
+  stroke-dasharray: 5 4;
+}
+
+.diagram-mount .cluster.flow-group .cluster-label span,
+.diagram-mount .cluster.flow-group .cluster-label p {
+  color: var(--group-a-ink) !important;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.diagram-mount .cluster.flow-group--b .cluster-label span,
+.diagram-mount .cluster.flow-group--b .cluster-label p {
+  color: var(--group-b-ink) !important;
 }

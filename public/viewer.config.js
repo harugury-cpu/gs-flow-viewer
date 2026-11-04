@@ -21,4 +21,24 @@ window.FLOW_VIEWER_CONFIG = {
     aliases: [],
     fileMap: {},
   },
+  /**
+   * 서비스 아이콘(선택). 기본 아이콘 세트는 public/service-icons.js 에 있다.
+   * 노드 라벨에 keys 중 하나가 들어 있으면 노드 안 위쪽에 큰 아이콘(34px)을 넣는다.
+   * - items: 같은 id 는 기본값을 덮어쓰고, 새 id 는 추가된다. { id, title, color, keys, path(24x24 SVG path) }
+   *   외부 URL은 쓰지 않는다(오프라인 보장). 상표 로고는 라이선스가 확인된 것만 넣는다.
+   * - enabled: false 로 기능 전체를 끈다.
+   */
+  icons: {
+    enabled: true,
+    items: [],
+  },
+  /**
+   * 선(화살표) 모양. 기본은 직각으로 꺾이는 선이다.
+   * - curve: Mermaid flowchart curve 값. 'step'(직각, 기본) · 'rounded'(직각 + 모서리 5px 둥글게) · 'linear' · 'basis'(이전 곡선)
+   * - animate: true 면 선이 연결 순서대로 흐르는 애니메이션을 켠다. 켜면 실선도 점선처럼 보여 `-.->` 구분이 흐려진다.
+   */
+  edges: {
+    curve: 'step',
+    animate: false,
+  },
 };
