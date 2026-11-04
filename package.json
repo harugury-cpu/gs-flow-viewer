@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "check": "node --check server.js && node --check public/app.js && node --check public/viewer.config.js"
+    "check": "node --check server.js && node --check public/app.js && node --check public/viewer.config.js && node --check public/service-icons.js && node --check public/diagram-services.js"
   },
   "engines": {
     "node": ">=18"

@@ -104,8 +104,11 @@
 - **뷰포트**: `--bg-secondary` 카드 표면, `--radius-md`(12px) 라운드. 장식적 그리드·코너마크 없음 — X Business 원칙(컬러 최소화, 여백의 힘)에 따라 절제.
 - **title block**: 그리드 셀 대신 얇은 `border-top` + 인라인 label:value 행. `app.js`의 `setTitleBlock()`이 `showDiagram`/`renderDiagram` 타이밍에 값을 채운다.
 - **접근성**: heading hierarchy, 오류는 상태 리전, 드릴다운 노드는 키보드 포커스 가능한 버튼.
+- **상세 따라가기**: 노드를 선택하면 실제 연결선의 분기 이름으로 다음 단계 버튼을 만든다. 이동한 노드를 화면 가운데로 가져오고 이전 단계로 복귀할 수 있다. 조작부는 캔버스 위에서 스크롤 중에도 보이며, 다이어그램은 원래 글씨 크기로 표시하고 캔버스가 가로 스크롤을 맡는다.
 
 ### Edges & groups
+
+노드의 서비스 아이콘은 Mermaid 원본의 `svc_*` 클래스를 따른다. 같은 분류로 기존 묶음이 없는 상세 흐름에 서비스별 그룹을 만든다. 조건 판단·계산과 외부 서비스의 이벤트·입출력을 구분하며, 원래 노드 도형·색·분기·곡선은 유지한다. 직접 작성한 `subgraph`와 전체 구조의 업무별 묶음은 우선 보존한다. 메타데이터가 없는 기존 문서만 서비스명 검색을 사용한다.
 
 선 문법은 [caru-ini/stack-diagram](https://github.com/caru-ini/stack-diagram)(MIT © caru-ini)의 `references/geometry.md`·`assets/template.html` 값을 따른다. 구현은 Mermaid 출력에 맞춰 새로 작성했다.
 

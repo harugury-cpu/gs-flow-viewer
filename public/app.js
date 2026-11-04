@@ -742,25 +742,32 @@ function setTitleBlock({ file, nodes, filterItem, status }) {
 
 async function renderDiagram(diagram) {
   elements.diagramError.hidden = true;
+  const trace = document.querySelector('#flowTrace');
+  if (trace) trace.hidden = true;
   elements.diagramStatus.textContent = '렌더링 중';
   setTitleBlock({ status: 'RENDERING' });
 
   const isOverview = diagram === getOverview();
   const interactiveNodes = isOverview ? getInteractiveNodeMap(diagram.mermaidCode) : new Map();
-  const annotatedCode = withServiceIconSlots(isOverview
-    ? diagram.mermaidCode
-    : withFeaturedSourceAnnotation(diagram.mermaidCode, diagram));
-  const source = annotatedCode;
   const renderSequence = ++state.renderSequence;
   const renderId = `mermaid-diagram-${renderSequence}`;
 
   try {
+    const annotatedCode = withServiceIconSlots(isOverview
+      ? diagram.mermaidCode
+      : withFeaturedSourceAnnotation(diagram.mermaidCode, diagram), { group: !isOverview });
+    const source = annotatedCode;
     const result = await mermaid.render(renderId, source);
     if (renderSequence !== state.renderSequence || diagram.id !== state.activeId) {
       return;
     }
 
     elements.diagramMount.innerHTML = result.svg;
+    const diagramSvg = elements.diagramMount.querySelector(':scope > svg');
+    if (diagramSvg?.viewBox.baseVal.width) {
+      // 그룹이 넓어져도 글씨 크기를 유지하고 캔버스가 가로 스크롤을 맡는다.
+      diagramSvg.setAttribute('width', String(diagramSvg.viewBox.baseVal.width));
+    }
     if (typeof result.bindFunctions === 'function') {
       result.bindFunctions(elements.diagramMount);
     }
@@ -777,6 +784,20 @@ async function renderDiagram(diagram) {
     if (EDGES_CONFIG.animate !== false) {
       addFlowAnimation(diagram, annotatedCode);
     }
+    bindFlowTrace(diagram, isOverview);
+    const viewport = document.querySelector('#diagramViewport');
+    if (viewport) {
+      viewport.scrollLeft = 0;
+      const firstId = DIAGRAM_SERVICES.nodeDefinitions(diagram.mermaidCode)[0]?.id;
+      const entry = [...elements.diagramMount.querySelectorAll('g.node')]
+        .find((node) => matchesRenderedNodeId(node.id, firstId));
+      if (entry) {
+        const box = entry.getBoundingClientRect();
+        const frame = viewport.getBoundingClientRect();
+        // 처음 열면 빈 여백 대신 원본의 첫 단계가 보이도록 시작 위치를 맞춘다.
+        viewport.scrollLeft = Math.max(0, box.left - frame.left - (viewport.clientWidth - box.width) / 2);
+      }
+    }
     elements.diagramStatus.textContent = '렌더링 완료';
     const featuredFilters = getFeaturedSourceFilters(diagram);
     elements.diagramHint.textContent = isOverview
@@ -786,6 +807,10 @@ async function renderDiagram(diagram) {
         : HAS_FILTER_ITEMS
           ? `이 흐름의 ${UI.filterLabel} 칩으로 필터하거나 사이드바에서 다른 파일로 이동`
           : '사이드바에서 다른 파일로 이동';
+    if (!isOverview && DIAGRAM_SERVICES.readServices(diagram.mermaidCode).size > 0) {
+      const groupCount = elements.diagramMount.querySelectorAll('g.cluster').length;
+      elements.diagramHint.textContent = `서비스별 묶음 ${groupCount}개 · 다음 단계 버튼으로 연결을 따라가세요`;
+    }
 
     const filterItem = primaryFilter(diagram);
     const nodeCount = elements.diagramMount.querySelectorAll('.node').length;
@@ -800,6 +825,95 @@ async function renderDiagram(diagram) {
       setTitleBlock({ status: 'ERROR' });
     }
   }
+}
+
+/** 실제 렌더된 간선의 끝점과 분기 이름으로 화면 밖의 다음 단계까지 이동한다. */
+function bindFlowTrace(diagram, isOverview) {
+  const trace = document.querySelector('#flowTrace');
+  if (!trace || isOverview) return;
+  const definitions = DIAGRAM_SERVICES.nodeDefinitions(diagram.mermaidCode);
+  const labels = new Map(definitions.map((node) => [node.id,
+    node.label.replace(/<br\s*\/?>/gi, ' · ').replace(/<[^>]+>/g, '').replace(/#quot;/g, '"')]));
+  const nodes = new Map();
+  elements.diagramMount.querySelectorAll('g.node').forEach((node) => {
+    const id = [...labels.keys()].find((id) => matchesRenderedNodeId(node.id, id));
+    if (id) nodes.set(id, node);
+  });
+  const edgeLabels = new Map([...elements.diagramMount.querySelectorAll('.edgeLabels .label[data-id]')]
+    .map((label) => [label.dataset.id, label.textContent.trim()]));
+  const edges = [...elements.diagramMount.querySelectorAll('.edgePaths path.flowchart-link')]
+    .map((path) => ({ ...splitEdgeId(path.dataset.id, new Set(nodes.keys())), label: edgeLabels.get(path.dataset.id) || '' }))
+    .filter((edge) => edge.from && edge.to);
+  const nodeStrokes = new Map([...nodes].map(([id, node]) => [id,
+    [...node.querySelectorAll(':scope > rect, :scope > polygon, :scope > path, :scope > circle')]
+      .map((shape) => ({ shape, stroke: shape.style.getPropertyValue('stroke'),
+        priority: shape.style.getPropertyPriority('stroke'), width: shape.style.getPropertyValue('stroke-width'),
+        widthPriority: shape.style.getPropertyPriority('stroke-width') }))]));
+  let current = null;
+  const history = [];
+
+  function button(text, action) {
+    const control = document.createElement('button');
+    control.type = 'button';
+    control.className = 'action-button flow-trace__button';
+    control.textContent = text;
+    control.addEventListener('click', action);
+    return control;
+  }
+
+  function select(id, { move = false, remember = true } = {}) {
+    if (remember && current && current !== id) history.push(current);
+    current = id;
+    nodes.forEach((node, nodeId) => {
+      node.classList.toggle('is-trace-current', nodeId === id);
+      node.setAttribute('aria-pressed', String(nodeId === id));
+      // Mermaid의 ID별 중요 스타일보다 현재 선택 표시가 우선하고, 이동 후 원래 색을 복원한다.
+      for (const original of nodeStrokes.get(nodeId)) {
+        original.shape.style.setProperty('stroke', nodeId === id ? 'var(--accent)' : original.stroke,
+          nodeId === id ? 'important' : original.priority);
+        original.shape.style.setProperty('stroke-width', nodeId === id ? '3.5px' : original.width,
+          nodeId === id ? 'important' : original.widthPriority);
+      }
+    });
+    const fragment = document.createDocumentFragment();
+    const heading = document.createElement('span');
+    heading.className = 'flow-trace__current';
+    heading.textContent = `현재: ${labels.get(id)}`;
+    fragment.append(heading);
+    if (history.length) fragment.append(button('이전 단계', () => select(history.pop(), { move: true, remember: false })));
+    const outgoing = edges.filter((edge) => edge.from === id);
+    for (const edge of outgoing) {
+      const next = button(`${edge.label || '다음'} → ${labels.get(edge.to)}`, () => select(edge.to, { move: true }));
+      next.dataset.nextNode = edge.to;
+      fragment.append(next);
+    }
+    if (!outgoing.length) {
+      const end = document.createElement('span');
+      end.textContent = '이 단계에서 연결이 끝납니다';
+      fragment.append(end);
+    }
+    trace.replaceChildren(fragment);
+    trace.hidden = false;
+    if (move) {
+      nodes.get(id)?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'auto' });
+      (trace.querySelector('[data-next-node]') || trace.querySelector('button'))?.focus({ preventScroll: true });
+    }
+  }
+
+  nodes.forEach((node, id) => {
+    node.tabIndex = 0;
+    node.setAttribute('role', 'button');
+    node.setAttribute('aria-label', `${labels.get(id)}, 다음 단계 확인`);
+    node.addEventListener('click', () => select(id));
+    node.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        select(id);
+      }
+    });
+  });
+  const first = definitions.find((node) => nodes.has(node.id));
+  if (first) select(first.id);
 }
 
 async function showDiagram(diagramId, { reveal = false, focusPanel = false } = {}) {
@@ -882,9 +996,6 @@ if (elements.navClearFilter) {
  */
 const ICONS_CONFIG = viewerConfig.icons || {};
 const ICON_ITEMS = (() => {
-  if (ICONS_CONFIG.enabled === false) {
-    return [];
-  }
   const merged = new Map();
   (window.FLOW_VIEWER_SERVICE_ICONS || []).forEach((item) => merged.set(item.id, item));
   (Array.isArray(ICONS_CONFIG.items) ? ICONS_CONFIG.items : []).forEach((item) => {
@@ -894,6 +1005,19 @@ const ICON_ITEMS = (() => {
 })();
 const ICON_BY_ID = new Map(ICON_ITEMS.map((item) => [item.id, item]));
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const DIAGRAM_SERVICES = window.FLOW_VIEWER_DIAGRAM_SERVICES;
+const SERVICE_TITLES = {
+  ...DIAGRAM_SERVICES.SERVICE_TITLES,
+  ...Object.fromEntries(ICON_ITEMS.map((item) => [item.id, item.title || item.id])),
+};
+
+function serviceSlot(service, label, group = false) {
+  if (ICONS_CONFIG.enabled === false || !service || service === 'none') return label;
+  const icon = ICON_BY_ID.get(service);
+  const classes = `svc-slot${group ? ' svc-slot--group' : ''}${icon ? '' : ' svc-slot--text'}`;
+  const title = String(SERVICE_TITLES[service] || service).replace(/[<>&"']/g, ' ');
+  return `<span class='${classes}' data-svc='${service}'>${icon ? '' : title}</span>${label}`;
+}
 
 function resolveServiceIcon(label) {
   // 줄바꿈과 강조 태그는 표시 문구를 바꾸지 않으므로 텍스트로 매칭한다.
@@ -905,51 +1029,34 @@ function resolveServiceIcon(label) {
  * subgraph 제목에는 노드용 큰 아이콘 대신 제목 앞 작은 아이콘(14px)을 넣는다.
  * (묶음 제목 왼쪽 위 + 작은 로고 배치 아이디어: caru-ini/stack-diagram, MIT © caru-ini — 코드는 새로 작성)
  */
-function withGroupIconSlot(line) {
+function withGroupIconSlot(line, services, groups) {
   const match = line.match(/^(\s*subgraph\s+)([A-Za-z][A-Za-z0-9_-]*)\s*(?:\[(?:"([^"]+)"|([^\]"]+))\])?\s*$/);
   if (!match) {
     return line;
   }
   const [, prefix, groupId, quoted, plain] = match;
   const label = (quoted || plain || groupId).trim();
-  const icon = /svc-slot/.test(label) ? null : resolveServiceIcon(label);
-  if (!icon) {
-    return line;
-  }
-  const safe = label.replace(/"/g, '#quot;');
-  return `${prefix}${groupId}["<span class='svc-slot svc-slot--group' data-svc='${icon.id}'></span>${safe}"]`;
+  if (/svc-slot/.test(label)) return line;
+  const service = services.size > 0 ? groups.get(groupId) : resolveServiceIcon(label)?.id;
+  const annotated = serviceSlot(service, label, true);
+  if (annotated === label) return line;
+  return `${prefix}${groupId}["${annotated.replace(/"/g, '#quot;')}"]`;
 }
 
-/** 사각형·둥근 노드 라벨 앞에 아이콘 자리를 넣고 기존 줄바꿈·강조는 보존한다. */
-function withServiceIconSlots(code) {
-  if (ICON_ITEMS.length === 0) {
-    return code;
-  }
-  return String(code)
-    .split('\n')
-    .map((line) => (/^\s*subgraph\b/.test(line) ? withGroupIconSlot(line) : withNodeIconSlots(line)))
-    .join('\n');
-}
-
-function withNodeIconSlots(line) {
-  const pattern = /\b([A-Za-z][A-Za-z0-9_-]*)(\(?)\[(?:"([^"]+)"|([^\]"]+))\](\)?)/g;
-  return line.replace(pattern, (all, nodeId, openRound, quoted, plain, closeRound) => {
-    const label = (quoted || plain || '').trim();
-    if (/svc-slot/.test(label) || nodeId === 'WHSRC' || nodeId === 'WHSRC_NOTE') {
-      return all;
-    }
-    const icon = resolveServiceIcon(label);
-    if (!icon) {
-      return all;
-    }
-    const cylinder = !openRound && /^\(.*\)$/.test(label);
-    const inner = cylinder ? label.slice(1, -1).trim() : label;
-    const safe = inner.replace(/"/g, '#quot;');
-    if (cylinder) {
-      return `${nodeId}[("<span class='svc-slot' data-svc='${icon.id}'></span>${safe}")]`;
-    }
-    return `${nodeId}${openRound}["<span class='svc-slot' data-svc='${icon.id}'></span>${safe}"]${closeRound}`;
+/** 원래 도형·라벨을 보존하고 명시한 서비스로 아이콘과 그룹을 만든다. */
+function withServiceIconSlots(code, { group = false } = {}) {
+  const services = DIAGRAM_SERVICES.readServices(code);
+  DIAGRAM_SERVICES.validateServices(code, services, SERVICE_TITLES);
+  const grouped = group ? DIAGRAM_SERVICES.addGroups(code, services, SERVICE_TITLES) : { code, groups: new Map() };
+  const annotated = DIAGRAM_SERVICES.annotateNodes(grouped.code, (node) => {
+    if (/svc-slot/.test(node.label) || node.id === 'WHSRC' || node.id === 'WHSRC_NOTE') return null;
+    // 명시적 분류가 있는 문서는 그 분류만으로 대상 서비스를 결정한다.
+    const service = services.size > 0 ? services.get(node.id) : resolveServiceIcon(node.label)?.id;
+    const label = serviceSlot(service, node.label);
+    return label === node.label ? null : label;
   });
+  return annotated.split('\n').map((line) => /^\s*subgraph\b/.test(line)
+    ? withGroupIconSlot(line, services, grouped.groups) : line).join('\n');
 }
 
 function addServiceIcons() {
@@ -1442,10 +1549,11 @@ async function fetchText(url) {
 }
 
 async function buildStandaloneHtml() {
-  const [css, mermaidSource, iconsSource, configSource, appSource] = await Promise.all([
+  const [css, mermaidSource, iconsSource, servicesSource, configSource, appSource] = await Promise.all([
     fetchText('/style.css'),
     fetchText('/vendor/mermaid.min.js'),
     fetchText('/service-icons.js'),
+    fetchText('/diagram-services.js'),
     fetchText('/viewer.config.js'),
     fetchText('/app.js'),
   ]);
@@ -1471,6 +1579,7 @@ async function buildStandaloneHtml() {
   const scripts = [
     mermaidSource,
     iconsSource,
+    servicesSource,
     configSource,
     `window.FLOW_VIEWER_EMBEDDED_DIAGRAMS = ${JSON.stringify(state.diagrams).replace(/</g, '\\u003c')};`,
   ];
