@@ -740,7 +740,7 @@ button:focus-visible,
 .diagram-viewport {
   min-width: 0;
   overflow: auto;
-  padding: 48px 56px;
+  padding: 24px 28px;
   border: 0;
   border-radius: var(--radius-md);
   background: var(--bg-secondary);
@@ -915,7 +915,7 @@ button:focus-visible,
   }
 
   .diagram-viewport {
-    padding: 32px 28px;
+    padding: 24px 20px;
   }
 }
 
@@ -947,7 +947,7 @@ button:focus-visible,
   }
 
   .diagram-viewport {
-    padding: 28px 20px;
+    padding: 20px 16px;
   }
 
   .title-block {
@@ -1015,26 +1015,27 @@ button:focus-visible,
 }
 
 
-/* ——— 서비스 아이콘 (노드 안 위쪽) ——— */
+/* ——— 서비스 아이콘 (노드 라벨 옆) ——— */
 .svc-slot {
-  display: block;
-  width: 34px;
-  height: 34px;
-  margin: 2px auto 8px;
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin: 0 6px 0 0;
+  vertical-align: -4px;
 }
 
 .svc-slot .svc-icon {
   display: block;
-  width: 34px;
-  height: 34px;
+  width: 18px;
+  height: 18px;
 }
 
 /* 로고가 없는 서비스는 이름으로 표시해 분류가 보이게 한다. */
 .svc-slot--text {
   width: auto;
   height: auto;
-  min-height: 24px;
-  padding: 3px 6px;
+  min-height: 18px;
+  padding: 0 4px;
   font-size: 11px;
   line-height: 18px;
 }

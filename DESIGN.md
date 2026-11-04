@@ -110,6 +110,8 @@
 
 노드의 서비스 아이콘은 Mermaid 원본의 `svc_*` 클래스를 따른다. 같은 분류로 기존 묶음이 없는 상세 흐름에 서비스별 그룹을 만든다. 조건 판단·계산과 외부 서비스의 이벤트·입출력을 구분하며, 원래 노드 도형·색·분기·곡선은 유지한다. 직접 작성한 `subgraph`와 전체 구조의 업무별 묶음은 우선 보존한다. 메타데이터가 없는 기존 문서만 서비스명 검색을 사용한다.
 
+노드 아이콘은 라벨 옆 18px, 본문은 13px로 표시한다. Mermaid 노드 패딩은 12px, 노드 간격은 28px, 단계 간격은 36px로 잡아 작은 아이콘에 맞춰 전체 흐름을 촘촘하게 배치한다.
+
 선 문법은 [caru-ini/stack-diagram](https://github.com/caru-ini/stack-diagram)(MIT © caru-ini)의 `references/geometry.md`·`assets/template.html` 값을 따른다. 구현은 Mermaid 출력에 맞춰 새로 작성했다.
 
 - **기본 모양**: 기존 Mermaid `curve: 'basis'` 곡선. 경로·라벨·화살촉은 Mermaid가 계산한 원본을 보존하고 연결 순서대로 흐르는 애니메이션을 기본으로 켠다.

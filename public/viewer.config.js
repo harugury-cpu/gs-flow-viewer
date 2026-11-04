@@ -23,7 +23,7 @@ window.FLOW_VIEWER_CONFIG = {
   },
   /**
    * 서비스 아이콘(선택). 기본 아이콘 세트는 public/service-icons.js 에 있다.
-   * 노드 라벨에 keys 중 하나가 들어 있으면 노드 안 위쪽에 큰 아이콘(34px)을 넣는다.
+   * 명시된 서비스(기존 문서는 keys 매칭)의 아이콘을 라벨 옆에 18px로 넣는다.
    * - items: 같은 id 는 기본값을 덮어쓰고, 새 id 는 추가된다. { id, title, color, keys, path(24x24 SVG path) }
    *   외부 URL은 쓰지 않는다(오프라인 보장). 상표 로고는 라이선스가 확인된 것만 넣는다.
    * - enabled: false 로 기능 전체를 끈다.

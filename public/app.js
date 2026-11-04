@@ -989,7 +989,7 @@ if (elements.navClearFilter) {
   elements.navClearFilter.addEventListener('click', () => setFilter(null));
 }
 
-/* ——— 서비스 아이콘 (노드 안 위쪽, 34px) ———
+/* ——— 서비스 아이콘 (라벨 옆, 18px) ———
  * 레이아웃 아이디어: caru-ini/stack-diagram(MIT © caru-ini)의 "로고 + 라벨" 타일. 코드는 새로 작성.
  * 렌더 전에 라벨 앞에 빈 자리(.svc-slot)를 넣어 Mermaid가 노드 크기를 아이콘까지 포함해 계산하게 하고,
  * 렌더 후 그 자리에 인라인 SVG를 채운다. 그래서 화살표·라벨이 아이콘에 가려지지 않는다.
@@ -1026,7 +1026,7 @@ function resolveServiceIcon(label) {
 }
 
 /**
- * subgraph 제목에는 노드용 큰 아이콘 대신 제목 앞 작은 아이콘(14px)을 넣는다.
+ * subgraph 제목에는 노드 아이콘과 별도로 제목 앞에 14px 아이콘을 넣는다.
  * (묶음 제목 왼쪽 위 + 작은 로고 배치 아이디어: caru-ini/stack-diagram, MIT © caru-ini — 코드는 새로 작성)
  */
 function withGroupIconSlot(line, services, groups) {
@@ -1638,9 +1638,9 @@ mermaid.initialize({
   flowchart: {
     // 기본은 Mermaid 원래 곡선과 라벨 위치를 사용한다. 직각 선은 명시적으로 선택한다.
     curve: EDGES_CONFIG.curve || 'basis',
-    padding: 22,
-    nodeSpacing: 48,
-    rankSpacing: 56,
+    padding: 12,
+    nodeSpacing: 28,
+    rankSpacing: 36,
     htmlLabels: true,
   },
   themeVariables: {
