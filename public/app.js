@@ -1050,9 +1050,9 @@ function withServiceIconSlots(code, { group = false } = {}) {
   const grouped = group ? DIAGRAM_SERVICES.addGroups(code, services, SERVICE_TITLES) : { code, groups: new Map() };
   const annotated = DIAGRAM_SERVICES.annotateNodes(grouped.code, (node) => {
     if (/svc-slot/.test(node.label) || node.id === 'WHSRC' || node.id === 'WHSRC_NOTE') return null;
-    // 명시적 분류가 있는 문서는 그 분류만으로 대상 서비스를 결정한다.
-    const service = services.size > 0 ? services.get(node.id) : resolveServiceIcon(node.label)?.id;
-    const label = serviceSlot(service, node.label);
+    // 명시적 분류가 있는 문서는 그 분류만으로 대상 서비스를 결정한다. 여러 서비스면 적은 순서대로 아이콘을 나란히 둔다.
+    const list = services.size > 0 ? (services.get(node.id) || []) : [resolveServiceIcon(node.label)?.id];
+    const label = list.reduceRight((text, service) => serviceSlot(service, text), node.label);
     return label === node.label ? null : label;
   });
   return annotated.split('\n').map((line) => /^\s*subgraph\b/.test(line)
@@ -1078,7 +1078,8 @@ function addServiceIcons() {
     const node = slot.closest('.node');
     if (node && !slot.classList.contains('svc-slot--group')) {
       node.classList.add('has-service-icon');
-      node.dataset.iconId = icon.id;
+      // 대표 서비스(첫 아이콘)만 기록한다.
+      if (!node.dataset.iconId) node.dataset.iconId = icon.id;
     }
   });
 }

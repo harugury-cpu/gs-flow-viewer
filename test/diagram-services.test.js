@@ -4,7 +4,7 @@ const { readServices, nodeDefinitions, annotateNodes, addGroups, validateService
 
 test('문구와 무관하게 명시된 대상 서비스를 읽는다', () => {
   const code = 'flowchart TD\n A[Mobile 상태 변경] --> B{상태가 완료인가?}\n class A svc_monday\n class B svc_apps_script';
-  assert.deepEqual([...readServices(code)], [['A', 'monday'], ['B', 'apps-script']]);
+  assert.deepEqual([...readServices(code)], [['A', ['monday']], ['B', ['apps-script']]]);
   validateServices(code, readServices(code));
 });
 
@@ -37,8 +37,15 @@ test('기존 그룹과 서비스 분류가 없는 문서는 보존한다', () =>
   assert.equal(addGroups(plain, readServices(plain)).code, plain);
 });
 
-test('모순된 분류와 존재하지 않는 노드·서비스를 진단한다', () => {
-  assert.throws(() => readServices('class A svc_monday\nclass A svc_sheets'), /두 개/);
+test('한 노드의 여러 서비스는 적은 순서대로 읽고 첫 번째로 묶는다', () => {
+  const code = 'flowchart TD\n A[시트 기록] --> B[완료]\n class A,B svc_sheets\n class A svc_monday\n class A svc_sheets';
+  assert.deepEqual(readServices(code).get('A'), ['sheets', 'monday']);
+  const { code: grouped, groups } = addGroups(code, readServices(code));
+  assert.deepEqual([...groups.values()], ['sheets']);
+  assert.equal((grouped.match(/^\s+A$/gm) || []).length, 1);
+});
+
+test('존재하지 않는 노드·서비스를 진단한다', () => {
   assert.throws(() => validateServices('A[상태]\nclass Z svc_monday', readServices('class Z svc_monday')), /노드 정의/);
   assert.throws(() => validateServices('A[상태]', readServices('class A svc_mystery')), /알 수 없는 서비스/);
 });

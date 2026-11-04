@@ -20,6 +20,10 @@
     ['[', ']'], ['{', '}'], ['(', ')'],
   ];
 
+  /**
+   * 노드 ID → 서비스 배열. 한 노드가 여러 서비스를 건드리면 class 줄을 여러 번 쓴다.
+   * 배열 순서 = 문서에 처음 나온 순서이고, 첫 번째가 묶음(subgraph) 위치를 정하는 대표 서비스다.
+   */
   function readServices(code) {
     const services = new Map();
     for (const line of String(code).split('\n')) {
@@ -27,10 +31,8 @@
       if (!match) continue;
       const service = match[2].replace(/_/g, '-');
       for (const id of match[1].split(',').map((id) => id.trim())) {
-        if (services.has(id) && services.get(id) !== service) {
-          throw new Error(`${id}: 대상 서비스가 두 개 지정되어 있습니다.`);
-        }
-        services.set(id, service);
+        if (!services.has(id)) services.set(id, []);
+        if (!services.get(id).includes(service)) services.get(id).push(service);
       }
     }
     return services;
@@ -83,7 +85,7 @@
   function addGroups(code, services, titles = SERVICE_TITLES) {
     if (services.size === 0 || /^\s*subgraph\b/m.test(code)) return { code, groups: new Map() };
     const byService = new Map();
-    for (const [id, service] of services) {
+    for (const [id, [service]] of services) {
       if (service === 'none') continue;
       if (!byService.has(service)) byService.set(service, []);
       byService.get(service).push(id);
@@ -104,9 +106,11 @@
 
   function validateServices(code, services, titles = SERVICE_TITLES) {
     const ids = new Set(nodeDefinitions(code).map((node) => node.id));
-    for (const [id, service] of services) {
+    for (const [id, list] of services) {
       if (!ids.has(id)) throw new Error(`${id}: 서비스 분류에 대응하는 노드 정의가 없습니다.`);
-      if (!Object.hasOwn(titles, service)) throw new Error(`${id}: 알 수 없는 서비스 ${service}`);
+      for (const service of list) {
+        if (!Object.hasOwn(titles, service)) throw new Error(`${id}: 알 수 없는 서비스 ${service}`);
+      }
     }
   }
 

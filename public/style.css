@@ -1030,6 +1030,11 @@ button:focus-visible,
   height: 18px;
 }
 
+/* 한 단계가 여러 서비스를 건드리면 아이콘을 붙여서 나란히 둔다. */
+.svc-slot:not(.svc-slot--group) + .svc-slot:not(.svc-slot--group) {
+  margin-left: -3px;
+}
+
 /* 로고가 없는 서비스는 이름으로 표시해 분류가 보이게 한다. */
 .svc-slot--text {
   width: auto;
