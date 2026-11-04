@@ -1058,8 +1058,8 @@ button:focus-visible,
 }
 
 /* 화살촉은 선과 같은 색(context-stroke). 지원하지 않는 브라우저는 강조색으로 남는다. */
-.diagram-mount marker path,
-.diagram-mount marker polygon {
+.diagram-mount .has-orthogonal-edges marker path,
+.diagram-mount .has-orthogonal-edges marker polygon {
   fill: var(--edge-primary) !important;
   fill: context-stroke !important;
   stroke: none !important;

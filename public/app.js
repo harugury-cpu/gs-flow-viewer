@@ -768,9 +768,13 @@ async function renderDiagram(diagram) {
     colorizeRenderedNodes(annotatedCode);
     addServiceIcons();
     const groups = styleGroups();
-    rerouteEdges(annotatedCode);
-    styleEdges(groups);
-    if (EDGES_CONFIG.animate === true) {
+    const orthogonal = ['step', 'rounded'].includes(EDGES_CONFIG.curve);
+    elements.diagramMount.querySelector('svg')?.classList.toggle('has-orthogonal-edges', orthogonal);
+    if (orthogonal) {
+      rerouteEdges(annotatedCode);
+      styleEdges(groups);
+    }
+    if (EDGES_CONFIG.animate !== false) {
       addFlowAnimation(diagram, annotatedCode);
     }
     elements.diagramStatus.textContent = '렌더링 완료';
@@ -892,7 +896,8 @@ const ICON_BY_ID = new Map(ICON_ITEMS.map((item) => [item.id, item]));
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 function resolveServiceIcon(label) {
-  const normalized = String(label || '').toLowerCase();
+  // 줄바꿈과 강조 태그는 표시 문구를 바꾸지 않으므로 텍스트로 매칭한다.
+  const normalized = String(label || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').toLowerCase();
   return ICON_ITEMS.find((item) => item.keys.some((key) => normalized.includes(String(key).toLowerCase()))) || null;
 }
 
@@ -907,7 +912,7 @@ function withGroupIconSlot(line) {
   }
   const [, prefix, groupId, quoted, plain] = match;
   const label = (quoted || plain || groupId).trim();
-  const icon = /svc-slot|</.test(label) ? null : resolveServiceIcon(label);
+  const icon = /svc-slot/.test(label) ? null : resolveServiceIcon(label);
   if (!icon) {
     return line;
   }
@@ -915,7 +920,7 @@ function withGroupIconSlot(line) {
   return `${prefix}${groupId}["<span class='svc-slot svc-slot--group' data-svc='${icon.id}'></span>${safe}"]`;
 }
 
-/** 사각형·둥근 노드 라벨 앞에 아이콘 자리를 넣는다. 분기({})나 이미 HTML인 라벨은 건드리지 않는다. */
+/** 사각형·둥근 노드 라벨 앞에 아이콘 자리를 넣고 기존 줄바꿈·강조는 보존한다. */
 function withServiceIconSlots(code) {
   if (ICON_ITEMS.length === 0) {
     return code;
@@ -930,7 +935,7 @@ function withNodeIconSlots(line) {
   const pattern = /\b([A-Za-z][A-Za-z0-9_-]*)(\(?)\[(?:"([^"]+)"|([^\]"]+))\](\)?)/g;
   return line.replace(pattern, (all, nodeId, openRound, quoted, plain, closeRound) => {
     const label = (quoted || plain || '').trim();
-    if (/svc-slot|</.test(label) || nodeId === 'WHSRC' || nodeId === 'WHSRC_NOTE') {
+    if (/svc-slot/.test(label) || nodeId === 'WHSRC' || nodeId === 'WHSRC_NOTE') {
       return all;
     }
     const icon = resolveServiceIcon(label);
@@ -1522,8 +1527,8 @@ mermaid.initialize({
   securityLevel: 'strict',
   theme: 'base',
   flowchart: {
-    // 직각으로 꺾이는 선(stack-diagram의 H/V 경로와 같은 모양). viewer.config.js 의 edges.curve 로 바꿀 수 있다.
-    curve: EDGES_CONFIG.curve || 'step',
+    // 기본은 Mermaid 원래 곡선과 라벨 위치를 사용한다. 직각 선은 명시적으로 선택한다.
+    curve: EDGES_CONFIG.curve || 'basis',
     padding: 22,
     nodeSpacing: 48,
     rankSpacing: 56,
@@ -1536,7 +1541,7 @@ mermaid.initialize({
     primaryColor: '#ffffff',
     primaryTextColor: '#0d0d0f',
     primaryBorderColor: '#c8cdd3',
-    lineColor: '#0076ed',
+    lineColor: '#b0b4ba',
     secondaryColor: '#f4f5f7',
     tertiaryColor: '#fbfbfc',
     mainBkg: '#ffffff',

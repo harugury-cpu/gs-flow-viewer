@@ -33,12 +33,13 @@ window.FLOW_VIEWER_CONFIG = {
     items: [],
   },
   /**
-   * 선(화살표) 모양. 기본은 직각으로 꺾이는 선이다.
-   * - curve: Mermaid flowchart curve 값. 'step'(직각, 기본) · 'rounded'(직각 + 모서리 5px 둥글게) · 'linear' · 'basis'(이전 곡선)
-   * - animate: true 면 선이 연결 순서대로 흐르는 애니메이션을 켠다. 켜면 실선도 점선처럼 보여 `-.->` 구분이 흐려진다.
+   * 선(화살표) 모양. 기본은 기존 Mermaid 곡선과 흐름 애니메이션이다.
+   * - curve: 'basis'(기본 곡선) · 'linear' · 'step'(직각) · 'rounded'(직각 + 모서리 5px 둥글게)
+   *   step/rounded를 선택할 때만 직각 경로 재배치·선 스타일을 적용한다.
+   * - animate: false 로 흐름 애니메이션을 끈다.
    */
   edges: {
-    curve: 'step',
-    animate: false,
+    curve: 'basis',
+    animate: true,
   },
 };

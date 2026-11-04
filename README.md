@@ -135,15 +135,15 @@ npm run check
 
 - **라이트·다크 테마**: 헤더의 `다크 테마` 버튼으로 전환한다(`?theme=dark`도 가능). 노드는 흰색으로 고정되고 바깥 면만 바뀐다.
 - **HTML 내보내기**: `HTML 내보내기` 버튼은 mermaid·CSS·설정·다이어그램 데이터를 모두 넣은 HTML 한 장을 저장한다. 서버·인터넷 없이 `file://`로 열린다.
-- **서비스 아이콘(선택)**: 노드 라벨에 서비스 이름이 들어 있으면 노드 안 위쪽에 큰 로고(34px)를 넣는다. 아이콘 자리를 렌더 전에 잡아서 노드 크기가 함께 커지므로 화살표·라벨을 가리지 않는다. 기본 세트는 `public/service-icons.js`, 덮어쓰기·추가는 `viewer.config.js`의 `icons.items`, 끄기는 `icons.enabled: false`. 매칭 단어는 `google sheets`, `apps script`, `gmail`처럼 구체적인 이름만 쓴다(‘시트’·‘저장’·‘메일’ 같은 흔한 말은 쓰지 않음).
+- **서비스 아이콘(선택)**: 노드 라벨에 서비스 이름이 들어 있으면 노드 안 위쪽에 큰 로고(34px)를 넣는다. 아이콘 자리를 렌더 전에 잡아서 노드 크기가 함께 커지므로 화살표·라벨을 가리지 않는다. 기본 세트는 `public/service-icons.js`, 덮어쓰기·추가는 `viewer.config.js`의 `icons.items`, 끄기는 `icons.enabled: false`. `Monday`, `Google Chat`, `google sheets`, `apps script`, `gmail` 등 서비스 이름을 인식하며, `<br/>` 줄바꿈이나 강조 태그가 있는 라벨도 지원한다. ‘시트’처럼 프로젝트 안에서만 서비스가 확정되는 표현은 `icons.items`에서 해당 서비스의 `keys`를 덮어쓴다(예: `{ id: 'sheets', keys: ['google sheets', '시트'] }`). 이 예시는 해당 서비스의 검색어만 교체하며 로고와 다른 서비스 아이콘은 유지한다.
 
 ## 선(화살표)과 묶음 박스
 
-- **선 모양**: 직각으로 꺾이는 선(모서리 각짐). 노드 변 가운데에서 나가 변 가운데로 들어가고, 다른 노드·아이콘·라벨·묶음 제목을 지나가지 않게 경로를 고른다. 안전한 경로를 못 찾으면 Mermaid가 그린 경로를 그대로 쓴다.
-- **선 종류**: `-->` 주 흐름(파란 1.6px 실선) · `-.->` 보조·배포·비동기(회색 1.4px 점선) · `==>` 핵심 경로(파란 2.4px). 화살촉은 선과 같은 색의 채운 삼각형.
-- **선 라벨**: 상자 없는 작은 고정폭 글자. 가로선은 선 위, 세로선은 선 오른쪽에 둔다.
+- **선 모양**: 기본은 기존 Mermaid 곡선(`basis`)이며 연결선과 라벨 위치를 Mermaid가 계산한 그대로 쓴다. `linear`도 Mermaid 원래 경로를 사용하며 점 사이를 직선으로 잇는다. 각 선에서 화살표 방향으로 점선이 흐르고 연결 단계마다 시작 시차를 두는 애니메이션이 기본으로 켜진다. `step`·`rounded`를 명시하면 직각 경로 재배치와 아래 선 스타일을 적용한다.
+- **직각 모드 선 종류**: `-->` 주 흐름(파란 1.6px 실선) · `-.->` 보조·배포·비동기(회색 1.4px 점선) · `==>` 핵심 경로(파란 2.4px). 화살촉은 선과 같은 색의 채운 삼각형.
+- **직각 모드 선 라벨**: 상자 없는 작은 고정폭 글자. 가로선은 선 위, 세로선은 선 오른쪽에 둔다.
 - **묶음(subgraph)**: 옅은 면 + 1.5px 테두리 + 둥근 모서리, 제목은 왼쪽 위. 묶음마다 주황·파랑을 번갈아 쓰고 중첩 묶음은 점선 테두리. 제목에 서비스 이름이 있으면 작은 아이콘을 붙인다(노드용 큰 아이콘은 넣지 않음).
-- **설정**: `viewer.config.js`의 `edges.curve`(`step` 기본, `rounded`·`linear`·`basis`)와 `edges.animate`(흐름 애니메이션, 기본 꺼짐).
+- **설정**: `viewer.config.js`의 `edges.curve`(`basis` 기본, `linear`·`step`·`rounded`)와 `edges.animate`(흐름 애니메이션, 기본 켜짐). `animate: false`로 애니메이션을 끌 수 있다.
 - **예제**: `DIAGRAM_SOURCE=examples/groups.md node server.js` — 회사 데이터 없는 subgraph 3개짜리 예제.
 
 선 모양·굵기·색·점선·화살촉·라벨 규칙은 [caru-ini/stack-diagram](https://github.com/caru-ini/stack-diagram)(MIT © caru-ini)의 `references/geometry.md`와 `assets/template.html`을 참고했다. 색·굵기 같은 수치(oklch 토큰을 sRGB hex로 옮긴 값)만 가져왔고 코드는 복사하지 않고 Mermaid 출력에 맞춰 새로 작성했다.
@@ -152,5 +152,5 @@ npm run check
 
 ### 아이콘 출처와 라이선스
 
-- Google Sheets, Google Apps Script, Gmail, Google Drive, Google Calendar, GitHub: [Simple Icons](https://simpleicons.org) v16.36.0, CC0-1.0. 로고 상표권은 각 회사(Google, GitHub)에 있으며 서비스 식별 용도로만 쓴다.
+- Google Sheets, Google Apps Script, Gmail, Google Drive, Google Calendar, Google Chat, GitHub: [Simple Icons](https://simpleicons.org) v16.36.0, CC0-1.0. 로고 상표권은 각 회사(Google, GitHub)에 있으며 서비스 식별 용도로만 쓴다.
 - monday.com, Slack, Webhook, Database: Simple Icons에 없거나(monday.com, Slack) 공식 로고가 아닌 개념이라, 이 저장소에서 직접 그린 단순 도형을 브랜드 색으로 칠해 쓴다. 공식 로고가 아니다.
