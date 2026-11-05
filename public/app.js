@@ -1640,6 +1640,9 @@ mermaid.initialize({
     // 기본은 Mermaid 원래 곡선과 라벨 위치를 사용한다. 직각 선은 명시적으로 선택한다.
     curve: EDGES_CONFIG.curve || 'basis',
     padding: 12,
+    // 묶음 제목(아이콘 + 12px 글자, styleGroups가 위 8px에 둔다)이 들어갈 자리를 레이아웃 단계에서 비워 둔다.
+    // 비워 두지 않으면 묶음 맨 윗줄 노드가 위에서 18px에 놓여 제목과 약 10px 겹친다.
+    subGraphTitleMargin: { top: 0, bottom: 14 },
     nodeSpacing: 28,
     rankSpacing: 36,
     htmlLabels: true,
